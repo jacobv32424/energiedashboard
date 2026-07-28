@@ -302,12 +302,20 @@ def geschatte_rekening(kosten: list[dict]) -> dict | None:
     posten = []
 
     # --- Elektriciteit ---
+    # "Energiekosten (dynamisch tarief)" komt uit de EPEX ALL_IN-marktprijs
+    # (price_fetcher.py/energyzero-bibliotheek) -- dat is de gangbare
+    # betekenis van "ALL_IN" in de Nederlandse dynamische-energiemarkt:
+    # kale marktprijs + energiebelasting + btw zijn daar al in verwerkt.
+    # Energiebelasting hoort dus NIET nogmaals als aparte post opgeteld te
+    # worden (dat was eerder een dubbeltelling). Alleen de
+    # Vandebron-specifieke inkoopvergoeding (een leveranciersopslag, geen
+    # marktgegeven) zit daar niet in en wordt apart toegevoegd, inclusief
+    # de 21% btw die Vandebron bevestigde (kale tarief + inkoopvergoeding +
+    # energiebelasting samen, dan btw).
     kwh_kosten = kosten[-1]["cumulatief_dynamisch"]
     vaste_leveringskosten = config.ELEKTRICITEIT_VASTE_LEVERINGSKOSTEN_PER_DAG * aantal_dagen
     netbeheer = config.ELEKTRICITEIT_NETBEHEERKOSTEN_PER_DAG * aantal_dagen
     vermindering = config.ELEKTRICITEIT_VERMINDERING_ENERGIEBELASTING_PER_DAG * aantal_dagen
-    energiebelasting_tarief = _schaaltarief(config.ELEKTRICITEIT_ENERGIEBELASTING_SCHALEN, import_totaal)
-    energiebelasting = import_totaal * energiebelasting_tarief
 
     export_per_jaar_geschat = export_totaal / aantal_dagen * 365.25
     terugleverkosten_tarief = _schaaltarief(
@@ -320,7 +328,7 @@ def geschatte_rekening(kosten: list[dict]) -> dict | None:
             "teruglevering met nog maar een paar weken (zomer)data -- dat valt te hoog uit"
         )
 
-    inkoopvergoeding = (import_totaal - export_totaal) * config.ELEKTRICITEIT_INKOOPVERGOEDING_KWH
+    inkoopvergoeding = (import_totaal - export_totaal) * config.ELEKTRICITEIT_INKOOPVERGOEDING_KWH * 1.21
     if export_totaal > import_totaal:
         kanttekeningen.append(
             "inkoopvergoeding op teruglevering wordt op de jaarafrekening gecorrigeerd zodra "
@@ -328,16 +336,15 @@ def geschatte_rekening(kosten: list[dict]) -> dict | None:
         )
 
     posten += [
-        {"naam": "Energiekosten (dynamisch tarief)", "bedrag": round(kwh_kosten, 2)},
+        {"naam": "Energiekosten (dynamisch tarief, incl. energiebelasting en btw)", "bedrag": round(kwh_kosten, 2)},
         {"naam": "Vaste leveringskosten (elektriciteit)", "bedrag": round(vaste_leveringskosten, 2)},
         {"naam": "Netbeheerkosten (elektriciteit)", "bedrag": round(netbeheer, 2)},
-        {"naam": "Energiebelasting (elektriciteit)", "bedrag": round(energiebelasting, 2)},
         {"naam": "Vermindering energiebelasting", "bedrag": round(-vermindering, 2)},
         {"naam": "Vaste terugleveringskosten", "bedrag": round(terugleverkosten, 2)},
-        {"naam": "Inkoopvergoeding (elektriciteit)", "bedrag": round(inkoopvergoeding, 2)},
+        {"naam": "Inkoopvergoeding (elektriciteit, incl. btw)", "bedrag": round(inkoopvergoeding, 2)},
     ]
     totaal = (
-        kwh_kosten + vaste_leveringskosten + netbeheer + energiebelasting
+        kwh_kosten + vaste_leveringskosten + netbeheer
         - vermindering + terugleverkosten + inkoopvergoeding
     )
 
@@ -418,11 +425,23 @@ def kosten_vergelijking() -> list[dict]:
         export_d = delta("energy_export_dal_kwh")
         prijs = prijzen[kwartier]
 
+        # Kale tarief + energiebelasting, dan 21% btw -- bevestigd door
+        # Vandebron: het kale leveringstarief is exclusief energiebelasting
+        # en btw. Geen inkoopvergoeding hier: die geldt specifiek voor
+        # dynamische contracten, niet voor dit vaste-tarief-scenario.
+        # `prijs` (dynamisch) is al all-in (zie geschatte_rekening), dus
+        # voor een eerlijke vergelijking moet dit dat ook zijn.
+        energiebelasting_tarief = config.ELEKTRICITEIT_ENERGIEBELASTING_SCHALEN[0][2]
+        all_in_normaal = (config.ELEKTRICITEIT_NORMAAL_KWH + energiebelasting_tarief) * 1.21
+        all_in_dal = (config.ELEKTRICITEIT_DAL_KWH + energiebelasting_tarief) * 1.21
+        all_in_saldering_normaal = (config.ELEKTRICITEIT_SALDERING_NORMAAL_KWH + energiebelasting_tarief) * 1.21
+        all_in_saldering_dal = (config.ELEKTRICITEIT_SALDERING_DAL_KWH + energiebelasting_tarief) * 1.21
+
         kosten_vast = (
-            import_n * config.ELEKTRICITEIT_NORMAAL_KWH
-            + import_d * config.ELEKTRICITEIT_DAL_KWH
-            - export_n * config.ELEKTRICITEIT_SALDERING_NORMAAL_KWH
-            - export_d * config.ELEKTRICITEIT_SALDERING_DAL_KWH
+            import_n * all_in_normaal
+            + import_d * all_in_dal
+            - export_n * all_in_saldering_normaal
+            - export_d * all_in_saldering_dal
         )
         kosten_dyn = import_kwh * prijs - export_kwh * prijs
 

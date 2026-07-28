@@ -25,16 +25,30 @@ dupliceert bewust alle tarieven (elektriciteit + gas) uit het
 Vandebron-contract: bij een tariefwijziging dus hier bijwerken, niet in
 `energieproject/config.py`.
 
-**Bevestigd door Vandebron (2026-07-28):** energiebelasting komt bovenop
-de Levering-tarieven (dus `ELEKTRICITEIT_NORMAAL_KWH` = € 0,14632 +
-energiebelasting € 0,11085 = € 0,25717 werkelijk normaaltarief) -- de
-code rekende dit al goed, geen wijziging nodig.
-
-**Open punt (nieuw):** Vandebron noemt ook een aparte "inkoopvergoeding"
-bovenop levering + energiebelasting + btw, die nergens in
-`geschatte_rekening()` is meegenomen -- ontbrekend tarief, navragen bij
-Jacob (staat mogelijk ook op het contractoverzicht, net als de andere
-componenten).
+**Btw/energiebelasting/inkoopvergoeding -- uitgezocht met Vandebron
+(2026-07-28), samengevat:**
+- Het kale leveringstarief (`ELEKTRICITEIT_NORMAAL_KWH`/`_DAL_KWH`,
+  van het contractoverzicht) is exclusief energiebelasting, inkoopvergoeding
+  én btw -- die drie komen er nog bij, en btw wordt berekend over de som
+  van alle drie (kale tarief + inkoopvergoeding + energiebelasting), niet
+  los per component.
+- De EPEX-dynamische prijs (`prijzen.prijs_kwh`, via
+  `price_fetcher.py`/energyzero-bibliotheek met `PriceType.ALL_IN`) is
+  ZELF al all-in: kale marktprijs + energiebelasting + btw zitten daar al
+  in verwerkt (bevestigd door de waarden zelf: €0,29-0,37/kWh, veel te
+  hoog voor een kale groothandelsprijs). Alleen de Vandebron-specifieke
+  inkoopvergoeding (leveranciersopslag, geen marktgegeven, dus nooit in
+  een generieke marktprijs-bibliotheek verwerkt) ontbreekt daar en wordt
+  apart opgeteld, inclusief de 21% btw daarover.
+- `kosten_vergelijking()` (vast vs. dynamisch) gebruikt daarom voor de
+  "vast"-kant: (kale tarief + energiebelasting) x 1,21 -- geen
+  inkoopvergoeding, want die geldt specifiek voor dynamische contracten.
+  `geschatte_rekening()` gebruikt de EPEX-prijs voor de energiekosten
+  (al all-in) plus apart de inkoopvergoeding x 1,21.
+- Energiebelasting-schijf: voor de "vast"-vergelijking wordt steeds de
+  eerste schijf (`ELEKTRICITEIT_ENERGIEBELASTING_SCHALEN[0]`) gebruikt als
+  vereenvoudiging -- ruim voldoende gezien de volumes.
+- Contract loopt tot 1 mei 2027 -- tarieven tot die datum geldig.
 
 Draait op de Pi als `energiedashboard.service`, poort 8421, als user
 `jacob` (zelfde patroon als `adressenboek.service`). Database staat op de

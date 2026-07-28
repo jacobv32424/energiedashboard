@@ -320,6 +320,13 @@ def geschatte_rekening(kosten: list[dict]) -> dict | None:
             "teruglevering met nog maar een paar weken (zomer)data -- dat valt te hoog uit"
         )
 
+    inkoopvergoeding = (import_totaal - export_totaal) * config.ELEKTRICITEIT_INKOOPVERGOEDING_KWH
+    if export_totaal > import_totaal:
+        kanttekeningen.append(
+            "inkoopvergoeding op teruglevering wordt op de jaarafrekening gecorrigeerd zodra "
+            "je over het jaar meer teruglevert dan je verbruikt -- dat is hier (nog) niet verrekend"
+        )
+
     posten += [
         {"naam": "Energiekosten (dynamisch tarief)", "bedrag": round(kwh_kosten, 2)},
         {"naam": "Vaste leveringskosten (elektriciteit)", "bedrag": round(vaste_leveringskosten, 2)},
@@ -327,8 +334,12 @@ def geschatte_rekening(kosten: list[dict]) -> dict | None:
         {"naam": "Energiebelasting (elektriciteit)", "bedrag": round(energiebelasting, 2)},
         {"naam": "Vermindering energiebelasting", "bedrag": round(-vermindering, 2)},
         {"naam": "Vaste terugleveringskosten", "bedrag": round(terugleverkosten, 2)},
+        {"naam": "Inkoopvergoeding (elektriciteit)", "bedrag": round(inkoopvergoeding, 2)},
     ]
-    totaal = kwh_kosten + vaste_leveringskosten + netbeheer + energiebelasting - vermindering + terugleverkosten
+    totaal = (
+        kwh_kosten + vaste_leveringskosten + netbeheer + energiebelasting
+        - vermindering + terugleverkosten + inkoopvergoeding
+    )
 
     # --- Gas ---
     if eerste_met_gas is not None and laatste["gas_m3"] is not None:
@@ -340,10 +351,11 @@ def geschatte_rekening(kosten: list[dict]) -> dict | None:
         gas_kosten = gas_totaal * (
             config.GAS_LEVERING_M3 + config.GAS_REGIOTOESLAG_M3
             + config.GAS_LOKAAL_INVESTEREN_M3 + gas_energiebelasting_tarief
+            + config.GAS_INKOOPVERGOEDING_M3
         )
         gas_vast = (config.GAS_VASTE_LEVERINGSKOSTEN_PER_DAG + config.GAS_NETBEHEERKOSTEN_PER_DAG) * gas_dagen
         posten += [
-            {"naam": "Gasverbruik", "bedrag": round(gas_kosten, 2)},
+            {"naam": "Gasverbruik (incl. inkoopvergoeding)", "bedrag": round(gas_kosten, 2)},
             {"naam": "Vaste kosten gas", "bedrag": round(gas_vast, 2)},
         ]
         totaal += gas_kosten + gas_vast

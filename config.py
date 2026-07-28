@@ -9,16 +9,18 @@ DB_PATH = os.environ.get(
 )
 
 # Alle bedragen hieronder komen letterlijk van het Vandebron-contractoverzicht
-# van Jacob (2026-07-28), "inclusief btw". Dit dashboard is een apart project
-# van de logger-service en raakt die code niet aan (zie CLAUDE.md) -- bij een
-# tariefwijziging dus hier bijwerken (niet in energieproject/config.py).
+# van Jacob en van rechtstreekse navraag bij Vandebron (2026-07-28),
+# "inclusief btw". Dit dashboard is een apart project van de logger-service
+# en raakt die code niet aan (zie CLAUDE.md) -- bij een tariefwijziging dus
+# hier bijwerken (niet in energieproject/config.py).
 #
-# LET OP -- nog niet 100% opgehelderd: Jacob zei eerder dat energiebelasting
-# al in de kWh-tarieven hieronder zit, maar het contractoverzicht toont
-# Energiebelasting als aparte regel onder "Overheidsheffingen". Deze
-# instellingen gaan uit van het contractoverzicht (dus energiebelasting
-# TELT APART mee) -- als dat niet klopt, ELEKTRICITEIT_ENERGIEBELASTING_KWH
-# hieronder op 0 zetten.
+# Bevestigd door Vandebron: energiebelasting komt BOVENOP de kWh-tarieven
+# hieronder (dus niet al inbegrepen), en er is daarnaast nog een
+# "inkoopvergoeding" per kWh/m3 (voor dynamische contracten -- Jacob heeft
+# een dynamisch contract, vandaar dat dit dashboard uberhaupt bestaat).
+#
+# Contract loopt tot 1 mei 2027 -- tarieven hieronder zijn tot die datum
+# geldig, daarna controleren/bijwerken.
 
 # --- Elektriciteit: levering -------------------------------------------------
 ELEKTRICITEIT_NORMAAL_KWH = 0.14632
@@ -33,6 +35,13 @@ ELEKTRICITEIT_SALDERING_NORMAAL_KWH = 0.14632
 ELEKTRICITEIT_SALDERING_DAL_KWH = 0.12081
 ELEKTRICITEIT_TERUGLEVERVERGOEDING_STANDAARD_KWH = 0.14000  # boven de salderingsgrens (nog niet toegepast)
 ELEKTRICITEIT_TERUGLEVERVERGOEDING_VERLAAGD_KWH = 0.07000   # idem, verlaagd tarief
+
+# Inkoopvergoeding (dynamisch contract): geldt per verbruikte EN per
+# teruggeleverde kWh (geen onderscheid normaal/dal). Bij teruglevering wordt
+# dit -- net als de vaste terugleveringskosten hierboven -- op de
+# jaarafrekening gecorrigeerd zodra je over het jaar meer teruglevert dan je
+# verbruikt; dit dashboard rekent voorlopig zonder die correctie.
+ELEKTRICITEIT_INKOOPVERGOEDING_KWH = 0.02571
 
 # --- Elektriciteit: vaste kosten ---------------------------------------------
 ELEKTRICITEIT_VASTE_LEVERINGSKOSTEN_PER_DAG = 0.19713
@@ -76,6 +85,7 @@ GAS_ENERGIEBELASTING_SCHALEN = [
 ]
 GAS_VASTE_LEVERINGSKOSTEN_PER_DAG = 0.19713
 GAS_NETBEHEERKOSTEN_PER_DAG = 0.73048
+GAS_INKOOPVERGOEDING_M3 = 0.05983
 
 # Gasverbruik wordt pas sinds 2026-07-28 gelogd (energy_logger.py loggede dit
 # aanvankelijk niet, ook al geeft de P1-meter het door) -- voor data van

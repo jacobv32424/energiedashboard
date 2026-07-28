@@ -1,0 +1,16 @@
+[Unit]
+Description=Energiedashboard (P1-meter/zon/dynamisch tarief overzicht)
+After=network.target
+
+[Service]
+Type=simple
+User=jacob
+Group=jacob
+WorkingDirectory=/opt/energiedashboard
+Environment=ENERGIEDASHBOARD_DB_PAD=/media/jacob/PortableSSD/energieproject/data/energie.db
+ExecStart=/opt/energiedashboard/.venv/bin/python app.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

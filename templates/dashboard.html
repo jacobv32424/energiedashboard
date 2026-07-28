@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Energiedashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --papier:#F2F6F4; --paneel:#FFFFFF; --inkt:#0F1E1C; --inkt-zacht:#54655F;
+  --lijn:#DCE6E2;
+  --accent:#1B6E6B;        /* elektriciteit / merk */
+  --import:#C1622D;        /* verbruik van het net */
+  --export:#D89B2E;        /* teruglevering / zon */
+  --prijs:#3E5C76;         /* dynamische prijs */
+  --goed:#2F8F6E; --schaduw: 0 1px 2px rgba(15,30,28,.04), 0 8px 24px rgba(15,30,28,.06);
+}
+:root[data-theme="dark"]{
+  --papier:#0E1A19; --paneel:#152423; --inkt:#EAF2EF; --inkt-zacht:#93A6A0;
+  --lijn:#233634;
+  --accent:#4FBDB6; --import:#E8895B; --export:#F0C05C; --prijs:#7C9CC0; --goed:#5FC79A;
+  --schaduw: 0 1px 2px rgba(0,0,0,.2), 0 12px 28px rgba(0,0,0,.35);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --papier:#0E1A19; --paneel:#152423; --inkt:#EAF2EF; --inkt-zacht:#93A6A0;
+    --lijn:#233634;
+    --accent:#4FBDB6; --import:#E8895B; --export:#F0C05C; --prijs:#7C9CC0; --goed:#5FC79A;
+    --schaduw: 0 1px 2px rgba(0,0,0,.2), 0 12px 28px rgba(0,0,0,.35);
+  }
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--papier); color:var(--inkt);
+  font-family:"IBM Plex Sans",system-ui,sans-serif; line-height:1.45;
+  transition:background .2s, color .2s;
+}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace; font-variant-numeric:tabular-nums}
+.wrap{max-width:1180px; margin:0 auto; padding:28px 22px 60px}
+
+header.top{display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:26px; flex-wrap:wrap}
+header.top h1{
+  font-family:"Fraunces",serif; font-weight:600; font-size:clamp(26px,4vw,34px);
+  margin:0; letter-spacing:-.01em; text-wrap:balance;
+}
+header.top .sub{font-size:13px; color:var(--inkt-zacht); margin-top:4px}
+.top-rechts{display:flex; align-items:center; gap:12px}
+.live-punt{width:8px; height:8px; border-radius:50%; background:var(--goed); display:inline-block; box-shadow:0 0 0 4px color-mix(in srgb, var(--goed) 20%, transparent); animation:puls 2.2s ease-in-out infinite}
+@keyframes puls{0%,100%{opacity:1}50%{opacity:.45}}
+.theme-knop{
+  border:1px solid var(--lijn); background:var(--paneel); color:var(--inkt-zacht);
+  border-radius:999px; padding:7px 14px; font:inherit; font-size:12.5px; cursor:pointer;
+}
+.theme-knop:hover{color:var(--inkt)}
+
+.kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:14px; margin-bottom:22px}
+.kpi{
+  background:var(--paneel); border:1px solid var(--lijn); border-radius:16px;
+  padding:18px 20px; box-shadow:var(--schaduw); position:relative; overflow:hidden;
+}
+.kpi::before{content:""; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--k,var(--accent))}
+.kpi .label{font-size:11px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--inkt-zacht)}
+.kpi .waarde{font-family:"IBM Plex Mono",monospace; font-size:28px; font-weight:600; margin-top:6px; display:flex; align-items:baseline; gap:6px}
+.kpi .eenheid{font-size:13px; font-weight:500; color:var(--inkt-zacht)}
+.kpi .detail{font-size:12px; color:var(--inkt-zacht); margin-top:4px}
+
+.panelen{display:grid; grid-template-columns:1fr; gap:16px}
+.rij-twee{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+@media (max-width:760px){.rij-twee{grid-template-columns:1fr}}
+.paneel{
+  background:var(--paneel); border:1px solid var(--lijn); border-radius:18px;
+  padding:20px 22px 14px; box-shadow:var(--schaduw);
+}
+.paneel h2{font-size:15px; font-weight:600; margin:0 0 2px; font-family:"Fraunces",serif}
+.paneel .uitleg{font-size:12.5px; color:var(--inkt-zacht); margin:0 0 12px}
+.chart-houder{position:relative; height:280px}
+.chart-houder.klein{height:230px}
+
+.legenda{display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--inkt-zacht); margin-top:10px}
+.legenda span{display:inline-flex; align-items:center; gap:6px}
+.legenda i{width:10px; height:10px; border-radius:3px; display:inline-block}
+
+.besparing{
+  margin-top:10px; padding-top:10px; border-top:1px solid var(--lijn);
+  font-size:13px; color:var(--inkt-zacht);
+}
+.besparing strong{color:var(--k,var(--goed)); font-size:15px}
+
+footer{text-align:center; font-size:11.5px; color:var(--inkt-zacht); margin-top:30px}
+
+.navigator{
+  display:flex; align-items:center; justify-content:space-between; gap:14px;
+  background:var(--paneel); border:1px solid var(--lijn); border-radius:14px;
+  padding:10px 14px; margin-bottom:16px; flex-wrap:wrap; box-shadow:var(--schaduw);
+}
+.tabs{display:flex; gap:4px; background:var(--papier); border-radius:10px; padding:3px}
+.tabs a{
+  font-size:12.5px; font-weight:600; color:var(--inkt-zacht); text-decoration:none;
+  padding:6px 13px; border-radius:8px; text-transform:capitalize;
+}
+.tabs a.actief{background:var(--paneel); color:var(--accent); box-shadow:var(--schaduw)}
+.periode-nav{display:flex; align-items:center; gap:10px}
+.periode-nav a{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:30px; height:30px; border-radius:50%; border:1px solid var(--lijn);
+  color:var(--inkt); text-decoration:none; font-size:15px;
+}
+.periode-nav a.uit{opacity:.3; pointer-events:none}
+.periode-nav a:hover{border-color:var(--accent); color:var(--accent)}
+.periode-label{font-family:"Fraunces",serif; font-weight:600; font-size:16px; min-width:150px; text-align:center}
+
+.instellingen{margin-top:16px}
+.instellingen-raster{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px 20px}
+.instellingen-raster div{font-size:12.5px; display:flex; justify-content:space-between; gap:10px; padding:7px 0; border-bottom:1px dashed var(--lijn)}
+.instellingen-raster span:first-child{color:var(--inkt-zacht)}
+.instellingen-raster span:last-child{font-family:"IBM Plex Mono",monospace}
+.instellingen summary{cursor:pointer; font-size:12.5px; font-weight:600; color:var(--inkt-zacht); list-style:none}
+.instellingen summary::-webkit-details-marker{display:none}
+.instellingen summary::before{content:"⚙ "}
+
+.over{margin-top:16px}
+.over h2{font-family:"Fraunces",serif; font-size:19px; font-weight:600; margin:0 0 6px}
+.over .intro{font-size:13.5px; color:var(--inkt-zacht); max-width:68ch; margin:0 0 18px}
+.kenmerken{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px}
+.kenmerk{display:flex; gap:12px}
+.kenmerk .stip{
+  flex-shrink:0; width:34px; height:34px; border-radius:10px;
+  display:flex; align-items:center; justify-content:center;
+  background:color-mix(in srgb, var(--k,var(--accent)) 16%, transparent);
+  color:var(--k,var(--accent)); font-size:16px;
+}
+.kenmerk h3{font-size:13.5px; font-weight:600; margin:0 0 3px}
+.kenmerk p{font-size:12.5px; color:var(--inkt-zacht); margin:0; line-height:1.5}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Energiedashboard</h1>
+      <div class="sub">P1-meter &middot; zonnepanelen &middot; dynamisch tarief</div>
+    </div>
+    <div class="top-rechts">
+      <span class="live-punt" title="Wordt elke minuut gelogd"></span>
+      <span class="sub mono" id="laatste-update"></span>
+      <button class="theme-knop" id="themaKnop" type="button">Donker/licht</button>
+    </div>
+  </header>
+
+  <div class="navigator">
+    <div class="tabs">
+      {% for p in ["dag", "week", "maand", "jaar"] %}
+      <a class="{{ 'actief' if p == periode else '' }}" href="{{ url_for('dashboard', periode=p) }}">{{ p }}</a>
+      {% endfor %}
+    </div>
+    <div class="periode-nav">
+      <a href="{{ url_for('dashboard', periode=periode, datum=navigatie.vorige_datum) }}" title="Vorige">&larr;</a>
+      <span class="periode-label">{{ navigatie.label }}</span>
+      <a class="{{ '' if navigatie.kan_vooruit else 'uit' }}" href="{{ url_for('dashboard', periode=periode, datum=navigatie.volgende_datum) }}" title="Volgende">&rarr;</a>
+    </div>
+  </div>
+
+  <section class="kpis">
+    <div class="kpi" style="--k:var(--accent)">
+      <div class="label">Huidig vermogen</div>
+      <div class="waarde"><span id="kpiVermogen">&mdash;</span><span class="eenheid">W</span></div>
+      <div class="detail" id="kpiVermogenDetail">&nbsp;</div>
+    </div>
+    <div class="kpi" style="--k:var(--import)">
+      <div class="label">Verbruik vandaag</div>
+      <div class="waarde"><span class="mono">{{ "%.2f"|format(stand.verbruik_vandaag_kwh or 0) }}</span><span class="eenheid">kWh</span></div>
+      <div class="detail">van het net</div>
+    </div>
+    <div class="kpi" style="--k:var(--export)">
+      <div class="label">Teruglevering vandaag</div>
+      <div class="waarde"><span class="mono">{{ "%.2f"|format(stand.teruglevering_vandaag_kwh or 0) }}</span><span class="eenheid">kWh</span></div>
+      <div class="detail">zonnepanelen</div>
+    </div>
+    <div class="kpi" style="--k:var(--prijs)">
+      <div class="label">Dynamische prijs nu</div>
+      <div class="waarde">
+        {% if stand.huidige_prijs_kwh is not none %}
+        <span class="mono">{{ "%.3f"|format(stand.huidige_prijs_kwh) }}</span><span class="eenheid">&euro;/kWh</span>
+        {% else %}<span class="mono">&mdash;</span>{% endif %}
+      </div>
+      <div class="detail">EPEX, incl. opslag</div>
+    </div>
+    {% if totaal %}
+    <div class="kpi" style="--k:{{ 'var(--goed)' if totaal.voordeliger else 'var(--import)' }}">
+      <div class="label">{{ "Totaal bespaard" if totaal.voordeliger else "Totaal extra betaald" }}</div>
+      <div class="waarde"><span class="mono">&euro; {{ "%.2f"|format(totaal.bedrag) }}</span></div>
+      <div class="detail">dynamisch t.o.v. vast, sinds {{ totaal.sinds }}</div>
+    </div>
+    {% endif %}
+  </section>
+
+  <section class="panelen">
+    {% if vermogen %}
+    <div class="paneel">
+      <h2>Vermogen &mdash; {{ navigatie.label }}</h2>
+      <div class="uitleg">Negatief = teruglevering (meer zon dan verbruik), positief = afname van het net.{% if periode == "week" %} Uurgemiddelden.{% endif %}</div>
+      <div class="chart-houder"><canvas id="grafiekVermogen"></canvas></div>
+    </div>
+    {% endif %}
+
+    <div class="paneel">
+      <h2>Zonproductie &mdash; typisch per uur</h2>
+      <div class="uitleg">Gemiddelde teruglevering per uur van de dag, over alle gelogde dagen samen. Laat zien wanneer de panelen doorgaans het meest opleveren.</div>
+      <div class="chart-houder klein"><canvas id="grafiekZon"></canvas></div>
+    </div>
+
+    <div class="rij-twee">
+      <div class="paneel">
+        <h2>Verbruik per {{ {"dag":"uur","week":"dag","maand":"dag","jaar":"maand"}[periode] }}</h2>
+        <div class="uitleg">{{ navigatie.label }}, import vs. teruglevering.</div>
+        <div class="chart-houder klein"><canvas id="grafiekDagelijks"></canvas></div>
+      </div>
+      <div class="paneel">
+        <h2>Vast vs. dynamisch tarief</h2>
+        <div class="uitleg">Cumulatieve kosten sinds het begin van de logging, op basis van je eigen verbruik.</div>
+        <div class="chart-houder klein"><canvas id="grafiekKosten"></canvas></div>
+        <div class="legenda">
+          <span><i style="background:var(--prijs)"></i>Vast (normaal/dal)</span>
+          <span><i style="background:var(--export)"></i>Dynamisch (EPEX)</span>
+        </div>
+        {% if kosten %}
+        {% set laatste = kosten[-1] %}
+        {% set verschil = laatste.cumulatief_vast - laatste.cumulatief_dynamisch %}
+        <div class="besparing" style="--k:{{ 'var(--goed)' if verschil >= 0 else 'var(--import)' }}">
+          Dynamisch tarief is tot nu toe
+          <strong class="mono">&euro; {{ "%.2f"|format(verschil|abs) }}</strong>
+          {{ "voordeliger" if verschil >= 0 else "duurder" }} dan je vaste tarief.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <section class="paneel instellingen">
+    <details>
+      <summary>Instellingen &amp; parameters</summary>
+      <div class="instellingen-raster" style="margin-top:12px">
+        <div><span>Tarief normaal (verbruik)</span><span>&euro; {{ "%.5f"|format(instellingen.tarief_normaal_kwh) }}/kWh</span></div>
+        <div><span>Tarief dal (verbruik)</span><span>&euro; {{ "%.5f"|format(instellingen.tarief_dal_kwh) }}/kWh</span></div>
+        <div><span>Teruglevering normaal</span><span>&euro; {{ "%.5f"|format(instellingen.terugleveren_normaal_kwh) }}/kWh</span></div>
+        <div><span>Teruglevering dal</span><span>&euro; {{ "%.5f"|format(instellingen.terugleveren_dal_kwh) }}/kWh</span></div>
+        <div><span>Database</span><span title="{{ instellingen.database_pad }}">{{ instellingen.database_pad.split('/')[-3:] | join('/') }}</span></div>
+      </div>
+    </details>
+  </section>
+
+  <section class="paneel over">
+    <h2>Waarom dit dashboard er is</h2>
+    <p class="intro">
+      Er liggen zonnepanelen op het dak en de stroomprijs is niet meer elk
+      jaar hetzelfde, maar verandert elk kwartier &mdash; net als op de
+      beurs. De vraag was simpel: <em>levert dat nou echt iets op, en hoeveel
+      stroom maken die panelen eigenlijk zelf?</em> Dit dashboard geeft daar
+      antwoord op, met de cijfers van je eigen meter &mdash; geen slag om de
+      arm, gewoon wat er hier thuis daadwerkelijk gebeurt.
+    </p>
+    <div class="kenmerken">
+      <div class="kenmerk" style="--k:var(--accent)">
+        <div class="stip">&#9889;</div>
+        <div><h3>Wat er nu gebeurt</h3><p>Hoeveel stroom er nu wordt gebruikt of teruggeleverd, en hoeveel dat vandaag al was.</p></div>
+      </div>
+      <div class="kenmerk" style="--k:var(--prijs)">
+        <div class="stip">&euro;</div>
+        <div><h3>Bespaart de nieuwe prijs echt geld?</h3><p>Een directe vergelijking in euro's: was de oude, vaste prijs voordeliger geweest, of juist niet?</p></div>
+      </div>
+      <div class="kenmerk" style="--k:var(--export)">
+        <div class="stip">&#9737;</div>
+        <div><h3>Wat de zonnepanelen opleveren</h3><p>Teruglevering per uur, dag of maand, plus een typisch uurpatroon: wanneer leveren de panelen doorgaans het meest?</p></div>
+      </div>
+      <div class="kenmerk" style="--k:var(--import)">
+        <div class="stip">&#8634;</div>
+        <div><h3>Terugkijken</h3><p>Met de knoppen bovenaan blader je terug: per dag, per week, per maand of per jaar.</p></div>
+      </div>
+      <div class="kenmerk" style="--k:var(--goed)">
+        <div class="stip">&#9881;</div>
+        <div><h3>Geen geheimen</h3><p>Onderaan staan precies de prijzen waarmee gerekend wordt &mdash; niets verstopt.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>Energiedashboard &middot; ververst bij elke paginalaad &middot; data via energy_logger / price_fetcher</footer>
+</div>
+
+<script>
+const VERMOGEN = {{ vermogen | tojson }};
+const DAGELIJKS = {{ verbruik | tojson }};
+const ZONPATROON = {{ zonpatroon | tojson }};
+const KOSTEN = {{ kosten | tojson }};
+const HUIDIGE_STAND = {{ stand | tojson }};
+
+const root = document.documentElement;
+const themaKnop = document.getElementById("themaKnop");
+const opgeslagenThema = localStorage.getItem("energiedashboard-thema");
+if (opgeslagenThema) root.setAttribute("data-theme", opgeslagenThema);
+themaKnop.addEventListener("click", () => {
+  const huidig = root.getAttribute("data-theme")
+    || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  const nieuw = huidig === "dark" ? "light" : "dark";
+  root.setAttribute("data-theme", nieuw);
+  localStorage.setItem("energiedashboard-thema", nieuw);
+});
+
+function stijl() {
+  const s = getComputedStyle(root);
+  return {
+    inkt: s.getPropertyValue("--inkt").trim(),
+    inktZacht: s.getPropertyValue("--inkt-zacht").trim(),
+    lijn: s.getPropertyValue("--lijn").trim(),
+    accent: s.getPropertyValue("--accent").trim(),
+    imp: s.getPropertyValue("--import").trim(),
+    exp: s.getPropertyValue("--export").trim(),
+    prijs: s.getPropertyValue("--prijs").trim(),
+    font: "IBM Plex Sans",
+  };
+}
+
+function kortTijd(iso) {
+  const d = new Date(iso);
+  return d.toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" });
+}
+function kortDag(iso) {
+  const d = new Date(iso + "T00:00:00Z");
+  return d.toLocaleDateString("nl-NL", { day: "numeric", month: "short" });
+}
+
+document.getElementById("laatste-update").textContent = HUIDIGE_STAND && HUIDIGE_STAND.tijdstip
+  ? "laatste meting " + kortTijd(HUIDIGE_STAND.tijdstip) : "";
+document.getElementById("kpiVermogen").textContent = HUIDIGE_STAND && HUIDIGE_STAND.vermogen_w != null
+  ? Math.round(HUIDIGE_STAND.vermogen_w) : "—";
+document.getElementById("kpiVermogenDetail").textContent = HUIDIGE_STAND && HUIDIGE_STAND.vermogen_w < 0
+  ? "teruglevering" : "verbruik van net";
+
+Chart.defaults.font.family = "IBM Plex Sans";
+Chart.defaults.color = stijl().inktZacht;
+
+function gradient(ctx, kleur) {
+  const g = ctx.createLinearGradient(0, 0, 0, 260);
+  g.addColorStop(0, kleur + "55");
+  g.addColorStop(1, kleur + "02");
+  return g;
+}
+
+const s = stijl();
+
+const canvasVermogen = document.getElementById("grafiekVermogen");
+if (canvasVermogen && VERMOGEN.length) {
+  new Chart(canvasVermogen, {
+    type: "line",
+    data: {
+      labels: VERMOGEN.map(p => p.label),
+      datasets: [{
+        label: "Vermogen (W)",
+        data: VERMOGEN.map(p => p.vermogen_w),
+        borderColor: s.accent,
+        backgroundColor: (c) => gradient(c.chart.ctx, s.accent),
+        fill: true, tension: .25, pointRadius: 0, borderWidth: 1.75,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      scales: {
+        x: { grid: { display: false }, ticks: { maxTicksLimit: 8, color: s.inktZacht } },
+        y: { grid: { color: s.lijn }, ticks: { color: s.inktZacht }, title: { display: true, text: "Watt", color: s.inktZacht } },
+      },
+      plugins: { legend: { display: false } },
+    },
+  });
+}
+
+new Chart(document.getElementById("grafiekZon"), {
+  type: "bar",
+  data: {
+    labels: ZONPATROON.map(z => z.uur),
+    datasets: [{
+      label: "Gem. teruglevering (kWh)",
+      data: ZONPATROON.map(z => z.gemiddeld_kwh),
+      backgroundColor: s.exp, borderRadius: 5, maxBarThickness: 18,
+    }],
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    scales: {
+      x: { grid: { display: false }, ticks: { color: s.inktZacht, maxTicksLimit: 12 } },
+      y: { grid: { color: s.lijn }, ticks: { color: s.inktZacht }, title: { display: true, text: "kWh", color: s.inktZacht } },
+    },
+    plugins: { legend: { display: false } },
+  },
+});
+
+new Chart(document.getElementById("grafiekDagelijks"), {
+  type: "bar",
+  data: {
+    labels: DAGELIJKS.map(d => d.label),
+    datasets: [
+      { label: "Import (net)", data: DAGELIJKS.map(d => d.import_kwh), backgroundColor: s.imp, borderRadius: 5, maxBarThickness: 22 },
+      { label: "Teruglevering (zon)", data: DAGELIJKS.map(d => d.export_kwh), backgroundColor: s.exp, borderRadius: 5, maxBarThickness: 22 },
+    ],
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    scales: {
+      x: { grid: { display: false }, ticks: { color: s.inktZacht } },
+      y: { grid: { color: s.lijn }, ticks: { color: s.inktZacht }, title: { display: true, text: "kWh", color: s.inktZacht } },
+    },
+    plugins: { legend: { position: "bottom", labels: { boxWidth: 10, color: s.inktZacht } } },
+  },
+});
+
+new Chart(document.getElementById("grafiekKosten"), {
+  type: "line",
+  data: {
+    labels: KOSTEN.map(k => kortDag(k.dag)),
+    datasets: [
+      { label: "Vast", data: KOSTEN.map(k => k.cumulatief_vast), borderColor: s.prijs, backgroundColor: s.prijs, tension: .2, pointRadius: 0, borderWidth: 2 },
+      { label: "Dynamisch", data: KOSTEN.map(k => k.cumulatief_dynamisch), borderColor: s.exp, backgroundColor: s.exp, tension: .2, pointRadius: 0, borderWidth: 2 },
+    ],
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    interaction: { mode: "index", intersect: false },
+    scales: {
+      x: { grid: { display: false }, ticks: { color: s.inktZacht, maxTicksLimit: 6 } },
+      y: { grid: { color: s.lijn }, ticks: { color: s.inktZacht }, title: { display: true, text: "€ cumulatief", color: s.inktZacht } },
+    },
+    plugins: { legend: { display: false } },
+  },
+});
+</script>
+</body>
+</html>

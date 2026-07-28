@@ -32,19 +32,15 @@ def dashboard():
         "dashboard.html",
         stand=dataset.huidige_stand(),
         totaal=dataset.totaal_bespaard(kosten),
+        rekening=dataset.geschatte_rekening(kosten),
         vermogen=dataset.vermogen_serie(periode, referentie),
         verbruik=dataset.verbruik_per_periode(periode, referentie),
         zonpatroon=dataset.zonpatroon_per_uur(),
         kosten=kosten,
         periode=periode,
         navigatie=navigatie,
-        instellingen={
-            "tarief_normaal_kwh": config.VAST_TARIEF_NORMAAL_KWH,
-            "tarief_dal_kwh": config.VAST_TARIEF_DAL_KWH,
-            "terugleveren_normaal_kwh": config.VAST_TERUGLEVER_NORMAAL_KWH,
-            "terugleveren_dal_kwh": config.VAST_TERUGLEVER_DAL_KWH,
-            "database_pad": config.DB_PATH,
-        },
+        config=config,
+        database_pad=config.DB_PATH,
     )
 
 

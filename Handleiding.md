@@ -55,10 +55,21 @@ zodra je bij "nu" bent aangekomen — verder dan vandaag kun je niet kijken.
   op het dynamische tarief hebt betaald. Deze grafiek kijkt altijd naar de
   hele geschiedenis, ongeacht welke periode je hierboven hebt gekozen.
 
-## Instellingen & parameters
+## Geschatte energierekening
 
-Onderaan, achter het uitklap-balkje "⚙ Instellingen & parameters", staan
-de prijzen waarmee gerekend wordt (je eigen energiecontract) en waar de
+Een proforma-optelsom van wat je energie sinds het begin van de logging
+ongeveer heeft gekost (of opgeleverd): de kale energiekosten plus alle
+vaste kosten en heffingen uit je Vandebron-contract (vastrecht,
+netbeheerkosten, energiebelasting, de vermindering daarop, en — zodra er
+gasdata is — ook gas). Onder de tabel staan kanttekeningen bij posten die
+nog een schatting zijn (bijv. de vaste terugleveringskosten, die afhangen
+van je jaarverbruik, terwijl er nog maar een paar weken data is).
+
+## Tarieven & parameters
+
+Onderaan, achter het uitklap-balkje "⚙ Tarieven & parameters", staan alle
+prijzen waarmee gerekend wordt — voor elektriciteit én gas, inclusief de
+schijven voor energiebelasting en vaste terugleveringskosten — en waar de
 onderliggende data vandaan komt. Niets verstopt.
 
 ## Licht/donker

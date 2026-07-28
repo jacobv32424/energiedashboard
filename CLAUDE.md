@@ -14,12 +14,23 @@ expliciete toestemming per keer.
 ## Dit project
 
 Klein, alleen-lezen Flask-dashboard voor de energieproject-data (P1-meter,
-zonnepanelen, dynamisch EPEX-tarief) die `energy_logger.py`/
+zonnepanelen, gas, dynamisch EPEX-tarief) die `energy_logger.py`/
 `price_fetcher.py` op de Pi (`plex`, los project op
 `/home/jacob/energieproject`) in SQLite loggen. Dit dashboard raakt die
-logger-code **niet** aan — het leest er alleen uit. `config.py` dupliceert
-daarom bewust de tarieven uit `energieproject/config.py`: bij een
-tariefwijziging dus op BEIDE plekken bijwerken.
+logger-code normaliter **niet** aan — het leest er alleen uit; de enige
+uitzondering was de toevoeging van gaslogging op 2026-07-28 (de P1-meter
+gaf gasstanden door die de logger nog niet opsloeg — zie `metingen.gas_m3`,
+sindsdien gelogd, met terugwerkende kracht niet beschikbaar). `config.py`
+dupliceert bewust alle tarieven (elektriciteit + gas) uit het
+Vandebron-contract: bij een tariefwijziging dus hier bijwerken, niet in
+`energieproject/config.py`.
+
+**Open punt:** het is niet 100% opgehelderd of energiebelasting op
+elektriciteit al in `ELEKTRICITEIT_NORMAAL_KWH`/`ELEKTRICITEIT_DAL_KWH` zit
+of niet — de instellingen gaan er nu van uit dat het een aparte post is
+(zie `ELEKTRICITEIT_ENERGIEBELASTING_SCHALEN`), naar het Vandebron
+contractoverzicht. Check dit met Jacob als het totaalbedrag in de
+geschatte rekening onwaarschijnlijk aanvoelt.
 
 Draait op de Pi als `energiedashboard.service`, poort 8421, als user
 `jacob` (zelfde patroon als `adressenboek.service`). Database staat op de

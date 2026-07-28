@@ -121,6 +121,19 @@ footer{text-align:center; font-size:11.5px; color:var(--inkt-zacht); margin-top:
 .instellingen summary::-webkit-details-marker{display:none}
 .instellingen summary::before{content:"⚙ "}
 
+.tarieftabellen{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:18px; margin-top:14px}
+.tarieftabellen h4{font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--inkt-zacht); margin:0 0 6px}
+table.tarieftabel{width:100%; border-collapse:collapse; font-size:12.5px}
+table.tarieftabel td{padding:5px 0; border-bottom:1px dashed var(--lijn)}
+table.tarieftabel td:last-child{text-align:right; font-family:"IBM Plex Mono",monospace; white-space:nowrap}
+
+.rekening-posten{width:100%; border-collapse:collapse; font-size:13px; margin-top:6px}
+.rekening-posten td{padding:6px 0; border-bottom:1px solid var(--lijn)}
+.rekening-posten td:last-child{text-align:right; font-family:"IBM Plex Mono",monospace}
+.rekening-posten tr.totaal td{font-weight:700; border-bottom:none; padding-top:10px; font-size:14.5px}
+.kanttekeningen{margin-top:10px; font-size:11.5px; color:var(--inkt-zacht); line-height:1.6}
+.kanttekeningen li{margin-bottom:2px}
+
 .over{margin-top:16px}
 .over h2{font-family:"Fraunces",serif; font-size:19px; font-weight:600; margin:0 0 6px}
 .over .intro{font-size:13.5px; color:var(--inkt-zacht); max-width:68ch; margin:0 0 18px}
@@ -239,15 +252,87 @@ footer{text-align:center; font-size:11.5px; color:var(--inkt-zacht); margin-top:
     </div>
   </section>
 
+  {% if rekening %}
+  <section class="paneel">
+    <h2>Geschatte energierekening</h2>
+    <div class="uitleg">Proforma, sinds {{ rekening.sinds }} ({{ rekening.aantal_dagen }} dagen) &mdash; op basis van je eigen verbruik en je Vandebron-contract.</div>
+    <table class="rekening-posten">
+      {% for post in rekening.posten %}
+      <tr><td>{{ post.naam }}</td><td>&euro; {{ "%.2f"|format(post.bedrag) }}</td></tr>
+      {% endfor %}
+      <tr class="totaal"><td>Totaal geschat</td><td>&euro; {{ "%.2f"|format(rekening.totaal) }}</td></tr>
+    </table>
+    {% if rekening.kanttekeningen %}
+    <ul class="kanttekeningen">
+      {% for k in rekening.kanttekeningen %}<li>{{ k }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+  {% endif %}
+
   <section class="paneel instellingen">
     <details>
-      <summary>Instellingen &amp; parameters</summary>
-      <div class="instellingen-raster" style="margin-top:12px">
-        <div><span>Tarief normaal (verbruik)</span><span>&euro; {{ "%.5f"|format(instellingen.tarief_normaal_kwh) }}/kWh</span></div>
-        <div><span>Tarief dal (verbruik)</span><span>&euro; {{ "%.5f"|format(instellingen.tarief_dal_kwh) }}/kWh</span></div>
-        <div><span>Teruglevering normaal</span><span>&euro; {{ "%.5f"|format(instellingen.terugleveren_normaal_kwh) }}/kWh</span></div>
-        <div><span>Teruglevering dal</span><span>&euro; {{ "%.5f"|format(instellingen.terugleveren_dal_kwh) }}/kWh</span></div>
-        <div><span>Database</span><span title="{{ instellingen.database_pad }}">{{ instellingen.database_pad.split('/')[-3:] | join('/') }}</span></div>
+      <summary>Tarieven &amp; parameters</summary>
+      <div class="tarieftabellen">
+        <div>
+          <h4>Elektriciteit &mdash; levering</h4>
+          <table class="tarieftabel">
+            <tr><td>Normaaltarief</td><td>&euro; {{ "%.5f"|format(config.ELEKTRICITEIT_NORMAAL_KWH) }}/kWh</td></tr>
+            <tr><td>Daltarief</td><td>&euro; {{ "%.5f"|format(config.ELEKTRICITEIT_DAL_KWH) }}/kWh</td></tr>
+            <tr><td>Saldering normaal</td><td>&euro; {{ "%.5f"|format(config.ELEKTRICITEIT_SALDERING_NORMAAL_KWH) }}/kWh</td></tr>
+            <tr><td>Saldering dal</td><td>&euro; {{ "%.5f"|format(config.ELEKTRICITEIT_SALDERING_DAL_KWH) }}/kWh</td></tr>
+            <tr><td>Terugleververgoeding (standaard)</td><td>&euro; {{ "%.5f"|format(config.ELEKTRICITEIT_TERUGLEVERVERGOEDING_STANDAARD_KWH) }}/kWh</td></tr>
+            <tr><td>Terugleververgoeding (verlaagd)</td><td>&euro; {{ "%.5f"|format(config.ELEKTRICITEIT_TERUGLEVERVERGOEDING_VERLAAGD_KWH) }}/kWh</td></tr>
+          </table>
+        </div>
+        <div>
+          <h4>Elektriciteit &mdash; vaste kosten</h4>
+          <table class="tarieftabel">
+            <tr><td>Vaste leveringskosten</td><td>&euro; {{ "%.5f"|format(config.ELEKTRICITEIT_VASTE_LEVERINGSKOSTEN_PER_DAG) }}/dag</td></tr>
+            <tr><td>Netbeheerkosten</td><td>&euro; {{ "%.5f"|format(config.ELEKTRICITEIT_NETBEHEERKOSTEN_PER_DAG) }}/dag</td></tr>
+            <tr><td>Vermindering energiebelasting</td><td>&minus;&euro; {{ "%.5f"|format(config.ELEKTRICITEIT_VERMINDERING_ENERGIEBELASTING_PER_DAG) }}/dag</td></tr>
+          </table>
+        </div>
+        <div>
+          <h4>Elektriciteit &mdash; energiebelasting (schijven)</h4>
+          <table class="tarieftabel">
+            {% for laag, hoog, tarief in config.ELEKTRICITEIT_ENERGIEBELASTING_SCHALEN %}
+            <tr><td>{{ "{:,.0f}".format(laag) }}&ndash;{{ "%s"|format("&#8734;" if hoog > 1000000000000000 else "{:,.0f}".format(hoog))|safe }} kWh</td><td>&euro; {{ "%.5f"|format(tarief) }}/kWh</td></tr>
+            {% endfor %}
+          </table>
+        </div>
+        <div>
+          <h4>Elektriciteit &mdash; vaste terugleveringskosten (schijven)</h4>
+          <table class="tarieftabel">
+            {% for laag, hoog, tarief in config.ELEKTRICITEIT_VASTE_TERUGLEVERINGSKOSTEN_SCHALEN %}
+            <tr><td>{{ "{:,.0f}".format(laag) }}&ndash;{{ "%s"|format("&#8734;" if hoog > 1000000000000000 else "{:,.0f}".format(hoog))|safe }} kWh/jaar</td><td>&euro; {{ "%.5f"|format(tarief) }}/dag</td></tr>
+            {% endfor %}
+          </table>
+        </div>
+        <div>
+          <h4>Gas &mdash; levering</h4>
+          <table class="tarieftabel">
+            <tr><td>Levering</td><td>&euro; {{ "%.5f"|format(config.GAS_LEVERING_M3) }}/m&sup3;</td></tr>
+            <tr><td>Regiotoeslag</td><td>&euro; {{ "%.5f"|format(config.GAS_REGIOTOESLAG_M3) }}/m&sup3;</td></tr>
+            <tr><td>Lokaal investeren</td><td>&euro; {{ "%.5f"|format(config.GAS_LOKAAL_INVESTEREN_M3) }}/m&sup3;</td></tr>
+            <tr><td>Vaste leveringskosten</td><td>&euro; {{ "%.5f"|format(config.GAS_VASTE_LEVERINGSKOSTEN_PER_DAG) }}/dag</td></tr>
+            <tr><td>Netbeheerkosten</td><td>&euro; {{ "%.5f"|format(config.GAS_NETBEHEERKOSTEN_PER_DAG) }}/dag</td></tr>
+          </table>
+        </div>
+        <div>
+          <h4>Gas &mdash; energiebelasting (schijven)</h4>
+          <table class="tarieftabel">
+            {% for laag, hoog, tarief in config.GAS_ENERGIEBELASTING_SCHALEN %}
+            <tr><td>{{ "{:,.0f}".format(laag) }}&ndash;{{ "%s"|format("&#8734;" if hoog > 1000000000000000 else "{:,.0f}".format(hoog))|safe }} m&sup3;</td><td>&euro; {{ "%.5f"|format(tarief) }}/m&sup3;</td></tr>
+            {% endfor %}
+          </table>
+        </div>
+        <div>
+          <h4>Bron</h4>
+          <table class="tarieftabel">
+            <tr><td>Database</td><td title="{{ database_pad }}">{{ database_pad.split('/')[-3:] | join('/') }}</td></tr>
+          </table>
+        </div>
       </div>
     </details>
   </section>
@@ -281,7 +366,11 @@ footer{text-align:center; font-size:11.5px; color:var(--inkt-zacht); margin-top:
       </div>
       <div class="kenmerk" style="--k:var(--goed)">
         <div class="stip">&#9881;</div>
-        <div><h3>Geen geheimen</h3><p>Onderaan staan precies de prijzen waarmee gerekend wordt &mdash; niets verstopt.</p></div>
+        <div><h3>Geen geheimen</h3><p>Onderaan staan precies de prijzen waarmee gerekend wordt (ook voor gas) &mdash; niets verstopt.</p></div>
+      </div>
+      <div class="kenmerk" style="--k:var(--prijs)">
+        <div class="stip">&#128179;</div>
+        <div><h3>Wat kost het nou écht?</h3><p>Een geschatte rekening: energie plus vastrecht, netbeheer en belastingen samen &mdash; niet alleen de kale kWh-prijs.</p></div>
       </div>
     </div>
   </section>

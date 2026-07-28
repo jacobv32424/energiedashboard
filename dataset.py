@@ -261,6 +261,108 @@ def zonpatroon_per_uur() -> list[dict]:
     ]
 
 
+def _schaaltarief(schalen: list[tuple[float, float, float]], volume: float) -> float:
+    for laag, hoog, tarief in schalen:
+        if laag <= volume < hoog:
+            return tarief
+    return schalen[-1][2]
+
+
+def geschatte_rekening(kosten: list[dict]) -> dict | None:
+    """Proforma-schatting van de energierekening sinds het begin van de
+    logging: energiekosten (dynamisch tarief) + alle vaste kosten en
+    heffingen uit het Vandebron-contract, voor zowel elektriciteit als gas.
+
+    Twee bewuste vereenvoudigingen, zichtbaar in 'kanttekeningen':
+    - de schaal voor vaste terugleveringskosten is gebaseerd op een
+      extrapolatie van de teruglevering tot nu toe naar een heel jaar --
+      met alleen zomerdata valt dat te hoog uit;
+    - energiebelasting rekent met de laagste schijf, wat correct is zolang
+      het jaarverbruik onder de eerste schijfgrens blijft (ruim het geval
+      bij deze volumes)."""
+    if not kosten:
+        return None
+
+    eerste_dag = datetime.strptime(kosten[0]["dag"], "%Y-%m-%d").date()
+    laatste_dag = datetime.strptime(kosten[-1]["dag"], "%Y-%m-%d").date()
+    aantal_dagen = (laatste_dag - eerste_dag).days + 1
+
+    conn = _connect()
+    eerste = conn.execute("SELECT * FROM metingen ORDER BY timestamp ASC LIMIT 1").fetchone()
+    laatste = conn.execute("SELECT * FROM metingen ORDER BY timestamp DESC LIMIT 1").fetchone()
+    eerste_met_gas = conn.execute(
+        "SELECT * FROM metingen WHERE gas_m3 IS NOT NULL ORDER BY timestamp ASC LIMIT 1"
+    ).fetchone()
+    conn.close()
+
+    import_totaal = max(0.0, laatste["energy_import_kwh"] - eerste["energy_import_kwh"])
+    export_totaal = max(0.0, laatste["energy_export_kwh"] - eerste["energy_export_kwh"])
+
+    kanttekeningen = []
+    posten = []
+
+    # --- Elektriciteit ---
+    kwh_kosten = kosten[-1]["cumulatief_dynamisch"]
+    vaste_leveringskosten = config.ELEKTRICITEIT_VASTE_LEVERINGSKOSTEN_PER_DAG * aantal_dagen
+    netbeheer = config.ELEKTRICITEIT_NETBEHEERKOSTEN_PER_DAG * aantal_dagen
+    vermindering = config.ELEKTRICITEIT_VERMINDERING_ENERGIEBELASTING_PER_DAG * aantal_dagen
+    energiebelasting_tarief = _schaaltarief(config.ELEKTRICITEIT_ENERGIEBELASTING_SCHALEN, import_totaal)
+    energiebelasting = import_totaal * energiebelasting_tarief
+
+    export_per_jaar_geschat = export_totaal / aantal_dagen * 365.25
+    terugleverkosten_tarief = _schaaltarief(
+        config.ELEKTRICITEIT_VASTE_TERUGLEVERINGSKOSTEN_SCHALEN, export_per_jaar_geschat
+    )
+    terugleverkosten = terugleverkosten_tarief * aantal_dagen
+    if aantal_dagen < 90:
+        kanttekeningen.append(
+            "vaste terugleveringskosten zijn gebaseerd op een schatting van je jaarlijkse "
+            "teruglevering met nog maar een paar weken (zomer)data -- dat valt te hoog uit"
+        )
+
+    posten += [
+        {"naam": "Energiekosten (dynamisch tarief)", "bedrag": round(kwh_kosten, 2)},
+        {"naam": "Vaste leveringskosten (elektriciteit)", "bedrag": round(vaste_leveringskosten, 2)},
+        {"naam": "Netbeheerkosten (elektriciteit)", "bedrag": round(netbeheer, 2)},
+        {"naam": "Energiebelasting (elektriciteit)", "bedrag": round(energiebelasting, 2)},
+        {"naam": "Vermindering energiebelasting", "bedrag": round(-vermindering, 2)},
+        {"naam": "Vaste terugleveringskosten", "bedrag": round(terugleverkosten, 2)},
+    ]
+    totaal = kwh_kosten + vaste_leveringskosten + netbeheer + energiebelasting - vermindering + terugleverkosten
+
+    # --- Gas ---
+    if eerste_met_gas is not None and laatste["gas_m3"] is not None:
+        gas_totaal = max(0.0, laatste["gas_m3"] - eerste_met_gas["gas_m3"])
+        gas_dagen = (
+            laatste_dag - datetime.fromisoformat(eerste_met_gas["timestamp"]).astimezone(LOCAL_TZ).date()
+        ).days + 1
+        gas_energiebelasting_tarief = _schaaltarief(config.GAS_ENERGIEBELASTING_SCHALEN, gas_totaal)
+        gas_kosten = gas_totaal * (
+            config.GAS_LEVERING_M3 + config.GAS_REGIOTOESLAG_M3
+            + config.GAS_LOKAAL_INVESTEREN_M3 + gas_energiebelasting_tarief
+        )
+        gas_vast = (config.GAS_VASTE_LEVERINGSKOSTEN_PER_DAG + config.GAS_NETBEHEERKOSTEN_PER_DAG) * gas_dagen
+        posten += [
+            {"naam": "Gasverbruik", "bedrag": round(gas_kosten, 2)},
+            {"naam": "Vaste kosten gas", "bedrag": round(gas_vast, 2)},
+        ]
+        totaal += gas_kosten + gas_vast
+        kanttekeningen.append(
+            "gasverbruik wordt pas sinds 28-07-2026 gelogd -- de weergegeven gaskosten "
+            "gelden dus over een kortere periode dan de elektriciteitskosten hierboven"
+        )
+    else:
+        kanttekeningen.append("nog geen gasdata beschikbaar")
+
+    return {
+        "sinds": eerste_dag.strftime("%d-%m-%Y"),
+        "aantal_dagen": aantal_dagen,
+        "posten": posten,
+        "totaal": round(totaal, 2),
+        "kanttekeningen": kanttekeningen,
+    }
+
+
 def kosten_vergelijking() -> list[dict]:
     """Cumulatieve kosten vast vs. dynamisch tarief, per dag, over de hele
     beschikbare geschiedenis -- zelfde rekenlogica als
@@ -305,10 +407,10 @@ def kosten_vergelijking() -> list[dict]:
         prijs = prijzen[kwartier]
 
         kosten_vast = (
-            import_n * config.VAST_TARIEF_NORMAAL_KWH
-            + import_d * config.VAST_TARIEF_DAL_KWH
-            - export_n * config.VAST_TERUGLEVER_NORMAAL_KWH
-            - export_d * config.VAST_TERUGLEVER_DAL_KWH
+            import_n * config.ELEKTRICITEIT_NORMAAL_KWH
+            + import_d * config.ELEKTRICITEIT_DAL_KWH
+            - export_n * config.ELEKTRICITEIT_SALDERING_NORMAAL_KWH
+            - export_d * config.ELEKTRICITEIT_SALDERING_DAL_KWH
         )
         kosten_dyn = import_kwh * prijs - export_kwh * prijs
 

@@ -60,10 +60,14 @@ zodra je bij "nu" bent aangekomen — verder dan vandaag kun je niet kijken.
 Een proforma-optelsom van wat je energie sinds het begin van de logging
 ongeveer heeft gekost (of opgeleverd): de kale energiekosten plus alle
 vaste kosten en heffingen uit je Vandebron-contract (vastrecht,
-netbeheerkosten, energiebelasting, de vermindering daarop, en — zodra er
-gasdata is — ook gas). Onder de tabel staan kanttekeningen bij posten die
-nog een schatting zijn (bijv. de vaste terugleveringskosten, die afhangen
-van je jaarverbruik, terwijl er nog maar een paar weken data is).
+netbeheerkosten, energiebelasting, de vermindering daarop, de
+inkoopvergoeding, en — zodra er gasdata is — ook gas). Onder de tabel
+staan kanttekeningen bij posten die nog een schatting zijn (bijv. de
+vaste terugleveringskosten en de inkoopvergoeding op teruglevering, die
+allebei afhangen van je jaarverbruik terwijl er nog maar een paar weken
+data is — bij Vandebron wordt dat op de jaarafrekening gecorrigeerd, hier
+nog niet). Tarieven zijn geldig zolang het huidige contract loopt (tot
+1 mei 2027).
 
 ## Tarieven & parameters
 

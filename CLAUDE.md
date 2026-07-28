@@ -25,12 +25,16 @@ dupliceert bewust alle tarieven (elektriciteit + gas) uit het
 Vandebron-contract: bij een tariefwijziging dus hier bijwerken, niet in
 `energieproject/config.py`.
 
-**Open punt:** het is niet 100% opgehelderd of energiebelasting op
-elektriciteit al in `ELEKTRICITEIT_NORMAAL_KWH`/`ELEKTRICITEIT_DAL_KWH` zit
-of niet — de instellingen gaan er nu van uit dat het een aparte post is
-(zie `ELEKTRICITEIT_ENERGIEBELASTING_SCHALEN`), naar het Vandebron
-contractoverzicht. Check dit met Jacob als het totaalbedrag in de
-geschatte rekening onwaarschijnlijk aanvoelt.
+**Bevestigd door Vandebron (2026-07-28):** energiebelasting komt bovenop
+de Levering-tarieven (dus `ELEKTRICITEIT_NORMAAL_KWH` = € 0,14632 +
+energiebelasting € 0,11085 = € 0,25717 werkelijk normaaltarief) -- de
+code rekende dit al goed, geen wijziging nodig.
+
+**Open punt (nieuw):** Vandebron noemt ook een aparte "inkoopvergoeding"
+bovenop levering + energiebelasting + btw, die nergens in
+`geschatte_rekening()` is meegenomen -- ontbrekend tarief, navragen bij
+Jacob (staat mogelijk ook op het contractoverzicht, net als de andere
+componenten).
 
 Draait op de Pi als `energiedashboard.service`, poort 8421, als user
 `jacob` (zelfde patroon als `adressenboek.service`). Database staat op de

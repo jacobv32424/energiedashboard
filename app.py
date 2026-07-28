@@ -35,6 +35,7 @@ def dashboard():
         rekening=dataset.geschatte_rekening(kosten),
         vermogen=dataset.vermogen_serie(periode, referentie),
         verbruik=dataset.verbruik_per_periode(periode, referentie),
+        gas=dataset.gas_per_periode(periode, referentie),
         zonpatroon=dataset.zonpatroon_per_uur(),
         kosten=kosten,
         periode=periode,

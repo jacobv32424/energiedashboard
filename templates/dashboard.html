@@ -16,19 +16,20 @@
   --import:#C1622D;        /* verbruik van het net */
   --export:#D89B2E;        /* teruglevering / zon */
   --prijs:#3E5C76;         /* dynamische prijs */
+  --gas:#5B7FA6;           /* gas */
   --goed:#2F8F6E; --schaduw: 0 1px 2px rgba(15,30,28,.04), 0 8px 24px rgba(15,30,28,.06);
 }
 :root[data-theme="dark"]{
   --papier:#0E1A19; --paneel:#152423; --inkt:#EAF2EF; --inkt-zacht:#93A6A0;
   --lijn:#233634;
-  --accent:#4FBDB6; --import:#E8895B; --export:#F0C05C; --prijs:#7C9CC0; --goed:#5FC79A;
+  --accent:#4FBDB6; --import:#E8895B; --export:#F0C05C; --prijs:#7C9CC0; --gas:#8FADD6; --goed:#5FC79A;
   --schaduw: 0 1px 2px rgba(0,0,0,.2), 0 12px 28px rgba(0,0,0,.35);
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --papier:#0E1A19; --paneel:#152423; --inkt:#EAF2EF; --inkt-zacht:#93A6A0;
     --lijn:#233634;
-    --accent:#4FBDB6; --import:#E8895B; --export:#F0C05C; --prijs:#7C9CC0; --goed:#5FC79A;
+    --accent:#4FBDB6; --import:#E8895B; --export:#F0C05C; --prijs:#7C9CC0; --gas:#8FADD6; --goed:#5FC79A;
     --schaduw: 0 1px 2px rgba(0,0,0,.2), 0 12px 28px rgba(0,0,0,.35);
   }
 }
@@ -250,6 +251,17 @@ table.tarieftabel td:last-child{text-align:right; font-family:"IBM Plex Mono",mo
         {% endif %}
       </div>
     </div>
+
+    <div class="paneel">
+      <h2>Gasverbruik per {{ {"dag":"uur","week":"dag","maand":"dag","jaar":"maand"}[periode] }}</h2>
+      <div class="uitleg">
+        {{ navigatie.label }}.
+        {% if not gas %}Nog geen gasdata voor deze periode &mdash; logging startte 28-07-2026.{% endif %}
+      </div>
+      {% if gas %}
+      <div class="chart-houder klein"><canvas id="grafiekGas"></canvas></div>
+      {% endif %}
+    </div>
   </section>
 
   {% if rekening %}
@@ -384,6 +396,7 @@ table.tarieftabel td:last-child{text-align:right; font-family:"IBM Plex Mono",mo
 const VERMOGEN = {{ vermogen | tojson }};
 const DAGELIJKS = {{ verbruik | tojson }};
 const ZONPATROON = {{ zonpatroon | tojson }};
+const GAS = {{ gas | tojson }};
 const KOSTEN = {{ kosten | tojson }};
 const HUIDIGE_STAND = {{ stand | tojson }};
 
@@ -409,6 +422,7 @@ function stijl() {
     imp: s.getPropertyValue("--import").trim(),
     exp: s.getPropertyValue("--export").trim(),
     prijs: s.getPropertyValue("--prijs").trim(),
+    gas: s.getPropertyValue("--gas").trim(),
     font: "IBM Plex Sans",
   };
 }
@@ -505,6 +519,27 @@ new Chart(document.getElementById("grafiekDagelijks"), {
     plugins: { legend: { position: "bottom", labels: { boxWidth: 10, color: s.inktZacht } } },
   },
 });
+
+const canvasGas = document.getElementById("grafiekGas");
+if (canvasGas && GAS.length) {
+  new Chart(canvasGas, {
+    type: "bar",
+    data: {
+      labels: GAS.map(g => g.label),
+      datasets: [
+        { label: "Gasverbruik (m3)", data: GAS.map(g => g.gas_m3), backgroundColor: s.gas, borderRadius: 5, maxBarThickness: 22 },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { grid: { display: false }, ticks: { color: s.inktZacht } },
+        y: { grid: { color: s.lijn }, ticks: { color: s.inktZacht }, title: { display: true, text: "m³", color: s.inktZacht } },
+      },
+      plugins: { legend: { display: false } },
+    },
+  });
+}
 
 new Chart(document.getElementById("grafiekKosten"), {
   type: "line",

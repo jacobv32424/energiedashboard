@@ -54,6 +54,10 @@ zodra je bij "nu" bent aangekomen — verder dan vandaag kun je niet kijken.
   de logging, op de oude manier (vast tarief) versus wat je daadwerkelijk
   op het dynamische tarief hebt betaald. Deze grafiek kijkt altijd naar de
   hele geschiedenis, ongeacht welke periode je hierboven hebt gekozen.
+- **Gasverbruik per periode** — hetzelfde idee als "Verbruik per periode",
+  maar dan voor gas. Gas wordt pas sinds 28-07-2026 gelogd, dus periodes
+  van daarvoor tonen niets — dat is geen fout, er was toen simpelweg nog
+  geen gasdata.
 
 ## Geschatte energierekening
 

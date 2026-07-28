@@ -226,6 +226,40 @@ def verbruik_per_periode(periode: str, referentie: date) -> list[dict]:
     return resultaat
 
 
+def gas_per_periode(periode: str, referentie: date) -> list[dict]:
+    """Gasverbruik (m3), gebucket op dezelfde granulariteit als
+    verbruik_per_periode(). Alleen import -- gas heeft geen teruglevering.
+    Gas wordt pas sinds 28-07-2026 gelogd, dus oudere periodes tonen niets."""
+    start_utc, eind_utc = _periode_grenzen(periode, referentie)
+    granulariteit = _BUCKET_PER_PERIODE[periode]
+
+    conn = _connect()
+    rijen = conn.execute(
+        "SELECT timestamp, gas_m3 FROM metingen "
+        "WHERE timestamp >= ? AND timestamp < ? AND gas_m3 IS NOT NULL ORDER BY timestamp ASC",
+        (start_utc.isoformat(), eind_utc.isoformat()),
+    ).fetchall()
+    conn.close()
+
+    per_bucket: dict[str, dict] = {}
+    labels: dict[str, str] = {}
+    for r in rijen:
+        sleutel, label = _bucket_info(r["timestamp"], granulariteit)
+        labels[sleutel] = label
+        if sleutel not in per_bucket:
+            per_bucket[sleutel] = {"eerste": r["gas_m3"]}
+        per_bucket[sleutel]["laatste"] = r["gas_m3"]
+
+    resultaat = []
+    for sleutel in sorted(per_bucket):
+        v = per_bucket[sleutel]
+        resultaat.append({
+            "label": labels[sleutel],
+            "gas_m3": round(max(0.0, v["laatste"] - v["eerste"]), 3),
+        })
+    return resultaat
+
+
 def zonpatroon_per_uur() -> list[dict]:
     """Gemiddelde teruglevering per uur van de dag, over alle beschikbare
     dagen -- laat zien wanneer de panelen typisch het meest opleveren,

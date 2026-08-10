@@ -2,11 +2,14 @@
 op de Pi vullen, en levert kant-en-klare series voor het dashboard."""
 from __future__ import annotations
 
+import json
+import os
 import sqlite3
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import config
+import slimmemeterportal as smp
 
 LOCAL_TZ = ZoneInfo("Europe/Amsterdam")
 _MAANDNAMEN = [
@@ -45,6 +48,40 @@ def totaal_bespaard(kosten: list[dict]) -> dict | None:
         "sinds": datetime.strptime(eerste["dag"], "%Y-%m-%d").strftime("%d-%m-%Y"),
         "bedrag": round(abs(verschil), 2),
         "voordeliger": verschil >= 0,
+    }
+
+
+def zelfvoorzienendheid(vanaf: date | None = None) -> dict | None:
+    """Indicatie van hoe zelfvoorzienend je bent: het aandeel van je totale
+    verbruik dat overeenkomt met je teruglevering aan het net.
+
+    Let op, dit is een ONDERGRENS, geen hard percentage: de P1-meter ziet
+    alleen wat het net op/af gaat, niet je eigen directe verbruik van
+    zelfopgewekte zonnestroom (die stroom passeert de meter nooit). Je
+    daadwerkelijke zelfvoorzienendheid ligt dus altijd op zijn minst zo
+    hoog als dit getal."""
+    conn = _connect()
+    if vanaf is not None:
+        eerste = conn.execute(
+            "SELECT * FROM metingen WHERE timestamp >= ? ORDER BY timestamp ASC LIMIT 1",
+            (vanaf.isoformat(),),
+        ).fetchone()
+    else:
+        eerste = conn.execute("SELECT * FROM metingen ORDER BY timestamp ASC LIMIT 1").fetchone()
+    laatste = conn.execute("SELECT * FROM metingen ORDER BY timestamp DESC LIMIT 1").fetchone()
+    conn.close()
+    if eerste is None or laatste is None:
+        return None
+
+    import_totaal = max(0.0, laatste["energy_import_kwh"] - eerste["energy_import_kwh"])
+    export_totaal = max(0.0, laatste["energy_export_kwh"] - eerste["energy_export_kwh"])
+    verbruik_totaal = import_totaal + export_totaal
+    if verbruik_totaal <= 0:
+        return None
+
+    return {
+        "percentage": round(min(100.0, export_totaal / verbruik_totaal * 100), 1),
+        "sinds": datetime.fromisoformat(eerste["timestamp"]).date().strftime("%d-%m-%Y"),
     }
 
 
@@ -302,10 +339,34 @@ def _schaaltarief(schalen: list[tuple[float, float, float]], volume: float) -> f
     return schalen[-1][2]
 
 
-def geschatte_rekening(kosten: list[dict]) -> dict | None:
-    """Proforma-schatting van de energierekening sinds het begin van de
-    logging: energiekosten (dynamisch tarief) + alle vaste kosten en
-    heffingen uit het Vandebron-contract, voor zowel elektriciteit als gas.
+def _cumulatief_dynamisch_vanaf(kosten: list[dict], vanaf: date) -> float:
+    """Cumulatieve dynamische-tarief-kosten uit kosten_vergelijking()
+    herberekend vanaf een gekozen datum i.p.v. vanaf het allereerste begin
+    van de logging (voor als je zelf een latere ingangsdatum kiest)."""
+    baseline = 0.0
+    laatste = 0.0
+    for rij in kosten:
+        dag = datetime.strptime(rij["dag"], "%Y-%m-%d").date()
+        laatste = rij["cumulatief_dynamisch"]
+        if dag < vanaf:
+            baseline = rij["cumulatief_dynamisch"]
+    return laatste - baseline
+
+
+def geschatte_rekening(kosten: list[dict], vanaf: date | None = None) -> dict | None:
+    """Proforma-schatting van de energierekening: energiekosten (dynamisch
+    tarief) + alle vaste kosten en heffingen uit het Vandebron-contract,
+    voor zowel elektriciteit als gas.
+
+    Standaard (`vanaf=None`) begint dit bij het begin van de logging
+    (2 juli 2026). Kies je zelf een `vanaf`-datum:
+    - ná het begin van de logging: het "echte deel" wordt gewoon herrekend
+      over die kortere, recentere periode;
+    - vóór het begin van de logging: het deel tussen `vanaf` en het begin
+      van de logging is een **schatting** (gemiddeld dagverbruik uit de wél
+      gemeten periode x de EPEX-dagprijs van die dag), apart teruggegeven
+      als `posten_geschat`/`dagen_geschat` zodat de template dit duidelijk
+      gescheiden kan tonen.
 
     Twee bewuste vereenvoudigingen, zichtbaar in 'kanttekeningen':
     - de schaal voor vaste terugleveringskosten is gebaseerd op een
@@ -317,18 +378,30 @@ def geschatte_rekening(kosten: list[dict]) -> dict | None:
     if not kosten:
         return None
 
-    eerste_dag = datetime.strptime(kosten[0]["dag"], "%Y-%m-%d").date()
-    laatste_dag = datetime.strptime(kosten[-1]["dag"], "%Y-%m-%d").date()
-    aantal_dagen = (laatste_dag - eerste_dag).days + 1
-
     conn = _connect()
-    eerste = conn.execute("SELECT * FROM metingen ORDER BY timestamp ASC LIMIT 1").fetchone()
+    globale_eerste = conn.execute("SELECT * FROM metingen ORDER BY timestamp ASC LIMIT 1").fetchone()
     laatste = conn.execute("SELECT * FROM metingen ORDER BY timestamp DESC LIMIT 1").fetchone()
-    eerste_met_gas = conn.execute(
-        "SELECT * FROM metingen WHERE gas_m3 IS NOT NULL ORDER BY timestamp ASC LIMIT 1"
-    ).fetchone()
-    conn.close()
+    if globale_eerste is None or laatste is None:
+        conn.close()
+        return None
 
+    eerste_dag_logging = datetime.fromisoformat(globale_eerste["timestamp"]).date()
+    laatste_dag = datetime.fromisoformat(laatste["timestamp"]).date()
+
+    effective_start = vanaf if vanaf is not None else eerste_dag_logging
+    geschat_start = effective_start if effective_start < eerste_dag_logging else None
+    echt_start = max(effective_start, eerste_dag_logging)
+
+    eerste = conn.execute(
+        "SELECT * FROM metingen WHERE timestamp >= ? ORDER BY timestamp ASC LIMIT 1",
+        (echt_start.isoformat(),),
+    ).fetchone()
+    eerste_met_gas = conn.execute(
+        "SELECT * FROM metingen WHERE timestamp >= ? AND gas_m3 IS NOT NULL ORDER BY timestamp ASC LIMIT 1",
+        (echt_start.isoformat(),),
+    ).fetchone()
+
+    aantal_dagen = max(1, (laatste_dag - echt_start).days + 1)
     import_totaal = max(0.0, laatste["energy_import_kwh"] - eerste["energy_import_kwh"])
     export_totaal = max(0.0, laatste["energy_export_kwh"] - eerste["energy_export_kwh"])
 
@@ -346,7 +419,7 @@ def geschatte_rekening(kosten: list[dict]) -> dict | None:
     # marktgegeven) zit daar niet in en wordt apart toegevoegd, inclusief
     # de 21% btw die Vandebron bevestigde (kale tarief + inkoopvergoeding +
     # energiebelasting samen, dan btw).
-    kwh_kosten = kosten[-1]["cumulatief_dynamisch"]
+    kwh_kosten = _cumulatief_dynamisch_vanaf(kosten, echt_start)
     vaste_leveringskosten = config.ELEKTRICITEIT_VASTE_LEVERINGSKOSTEN_PER_DAG * aantal_dagen
     netbeheer = config.ELEKTRICITEIT_NETBEHEERKOSTEN_PER_DAG * aantal_dagen
     vermindering = config.ELEKTRICITEIT_VERMINDERING_ENERGIEBELASTING_PER_DAG * aantal_dagen
@@ -370,12 +443,12 @@ def geschatte_rekening(kosten: list[dict]) -> dict | None:
         )
 
     posten += [
-        {"naam": "Energiekosten (dynamisch tarief, incl. energiebelasting en btw)", "bedrag": round(kwh_kosten, 2)},
-        {"naam": "Vaste leveringskosten (elektriciteit)", "bedrag": round(vaste_leveringskosten, 2)},
-        {"naam": "Netbeheerkosten (elektriciteit)", "bedrag": round(netbeheer, 2)},
-        {"naam": "Vermindering energiebelasting", "bedrag": round(-vermindering, 2)},
-        {"naam": "Vaste terugleveringskosten", "bedrag": round(terugleverkosten, 2)},
-        {"naam": "Inkoopvergoeding (elektriciteit, incl. btw)", "bedrag": round(inkoopvergoeding, 2)},
+        {"naam": "Energiekosten (dynamisch tarief, incl. energiebelasting en btw)", "bedrag": round(kwh_kosten, 2), "categorie": "elektriciteit"},
+        {"naam": "Vaste leveringskosten (elektriciteit)", "bedrag": round(vaste_leveringskosten, 2), "categorie": "elektriciteit"},
+        {"naam": "Netbeheerkosten (elektriciteit)", "bedrag": round(netbeheer, 2), "categorie": "elektriciteit"},
+        {"naam": "Vermindering energiebelasting", "bedrag": round(-vermindering, 2), "categorie": "elektriciteit"},
+        {"naam": "Vaste terugleveringskosten", "bedrag": round(terugleverkosten, 2), "categorie": "elektriciteit"},
+        {"naam": "Inkoopvergoeding (elektriciteit, incl. btw)", "bedrag": round(inkoopvergoeding, 2), "categorie": "elektriciteit"},
     ]
     totaal = (
         kwh_kosten + vaste_leveringskosten + netbeheer
@@ -396,8 +469,8 @@ def geschatte_rekening(kosten: list[dict]) -> dict | None:
         )
         gas_vast = (config.GAS_VASTE_LEVERINGSKOSTEN_PER_DAG + config.GAS_NETBEHEERKOSTEN_PER_DAG) * gas_dagen
         posten += [
-            {"naam": "Gasverbruik (incl. inkoopvergoeding)", "bedrag": round(gas_kosten, 2)},
-            {"naam": "Vaste kosten gas", "bedrag": round(gas_vast, 2)},
+            {"naam": "Gasverbruik (incl. inkoopvergoeding)", "bedrag": round(gas_kosten, 2), "categorie": "gas"},
+            {"naam": "Vaste kosten gas", "bedrag": round(gas_vast, 2), "categorie": "gas"},
         ]
         totaal += gas_kosten + gas_vast
         kanttekeningen.append(
@@ -407,13 +480,231 @@ def geschatte_rekening(kosten: list[dict]) -> dict | None:
     else:
         kanttekeningen.append("nog geen gasdata beschikbaar")
 
+    # --- Geschat deel (vóór het begin van de logging, alleen als je zelf
+    # een eerdere ingangsdatum kiest) -- gemiddeld dagverbruik uit de wél
+    # gemeten periode x de EPEX-dagprijs van die dag. Zodra er een echte
+    # historische export (bijv. via slimmemeterportal.nl) voor (een deel
+    # van) deze dagen beschikbaar is, hoort die als ECHTE data te worden
+    # meegenomen i.p.v. deze schatting -- dat is nog niet geïmplementeerd.
+    posten_geschat = None
+    dagen_geschat = 0
+    if geschat_start is not None:
+        dagen_geschat = (eerste_dag_logging - geschat_start).days
+        profiel_import = import_totaal / aantal_dagen if aantal_dagen else 0.0
+        profiel_export = export_totaal / aantal_dagen if aantal_dagen else 0.0
+
+        prijzen_rijen = conn.execute(
+            "SELECT kwartier_start, prijs_kwh FROM prijzen WHERE kwartier_start >= ? AND kwartier_start < ?",
+            (geschat_start.isoformat(), eerste_dag_logging.isoformat()),
+        ).fetchall()
+        prijs_per_dag: dict[str, list[float]] = {}
+        for r in prijzen_rijen:
+            prijs_per_dag.setdefault(r["kwartier_start"][:10], []).append(r["prijs_kwh"])
+        gem_prijs_per_dag = {dag: sum(v) / len(v) for dag, v in prijs_per_dag.items()}
+
+        # Echte historische kwartierdata van slimmemeterportal.nl (je eigen
+        # slimme meter, terug tot 2015) heeft voorrang boven het gemiddeld
+        # dagprofiel -- alleen dagen die daar ontbreken worden nog geschat.
+        historie = smp.historie_lezen()
+        elek_historie = historie.get("elektriciteit", {})
+
+        energie_geschat = 0.0
+        dagen_zonder_prijs = 0
+        dagen_echt_extern = 0
+        netto_kwh_totaal = 0.0
+        dag_cursor = geschat_start
+        while dag_cursor < eerste_dag_logging:
+            sleutel = dag_cursor.isoformat()
+            dag_echt = elek_historie.get(sleutel)
+            if dag_echt is not None:
+                dag_import, dag_export = dag_echt["import"], dag_echt["export"]
+                dagen_echt_extern += 1
+            else:
+                dag_import, dag_export = profiel_import, profiel_export
+            netto_kwh_totaal += dag_import - dag_export
+
+            prijs = gem_prijs_per_dag.get(sleutel)
+            if prijs is None:
+                dagen_zonder_prijs += 1
+            else:
+                energie_geschat += (dag_import - dag_export) * prijs
+            dag_cursor += timedelta(days=1)
+
+        vaste_leveringskosten_g = config.ELEKTRICITEIT_VASTE_LEVERINGSKOSTEN_PER_DAG * dagen_geschat
+        netbeheer_g = config.ELEKTRICITEIT_NETBEHEERKOSTEN_PER_DAG * dagen_geschat
+        vermindering_g = config.ELEKTRICITEIT_VERMINDERING_ENERGIEBELASTING_PER_DAG * dagen_geschat
+        terugleverkosten_g = terugleverkosten_tarief * dagen_geschat
+        inkoopvergoeding_g = netto_kwh_totaal * config.ELEKTRICITEIT_INKOOPVERGOEDING_KWH * 1.21
+
+        label_suffix = "geschat" if dagen_echt_extern < dagen_geschat else "slimmemeterportal.nl"
+        posten_geschat = [
+            {"naam": f"Energiekosten (dynamisch tarief, {label_suffix})", "bedrag": round(energie_geschat, 2), "categorie": "elektriciteit"},
+            {"naam": "Vaste leveringskosten (elektriciteit, geschat)", "bedrag": round(vaste_leveringskosten_g, 2), "categorie": "elektriciteit"},
+            {"naam": "Netbeheerkosten (elektriciteit, geschat)", "bedrag": round(netbeheer_g, 2), "categorie": "elektriciteit"},
+            {"naam": "Vermindering energiebelasting (geschat)", "bedrag": round(-vermindering_g, 2), "categorie": "elektriciteit"},
+            {"naam": "Vaste terugleveringskosten (geschat)", "bedrag": round(terugleverkosten_g, 2), "categorie": "elektriciteit"},
+            {"naam": f"Inkoopvergoeding (elektriciteit, {label_suffix})", "bedrag": round(inkoopvergoeding_g, 2), "categorie": "elektriciteit"},
+        ]
+        if eerste_met_gas is not None:
+            gas_vast_g = (config.GAS_VASTE_LEVERINGSKOSTEN_PER_DAG + config.GAS_NETBEHEERKOSTEN_PER_DAG) * dagen_geschat
+            posten_geschat.append(
+                {"naam": "Vaste kosten gas (geschat)", "bedrag": round(gas_vast_g, 2), "categorie": "gas"}
+            )
+
+        totaal += sum(p["bedrag"] for p in posten_geschat)
+
+        kanttekening_geschat = (
+            f"Vanaf {geschat_start.strftime('%d-%m-%Y')} tot {eerste_dag_logging.strftime('%d-%m-%Y')} "
+            "is er geen eigen P1-meterdata."
+        )
+        if dagen_echt_extern == dagen_geschat:
+            kanttekening_geschat += (
+                " Het verbruik in deze periode komt van je eigen slimme meter via "
+                "slimmemeterportal.nl (echte data), niet uit een schatting."
+            )
+        elif dagen_echt_extern:
+            kanttekening_geschat += (
+                f" Voor {dagen_echt_extern} van de {dagen_geschat} dagen is dit echte data van je "
+                "slimme meter (via slimmemeterportal.nl); voor de rest een schatting op basis van je "
+                "gemiddelde verbruik in de wél gemeten periode."
+            )
+        else:
+            kanttekening_geschat += (
+                " Deze regels zijn een schatting op basis van je gemiddelde verbruik in de wél "
+                "gemeten periode."
+            )
+        if dagen_zonder_prijs:
+            kanttekening_geschat += (
+                f" Voor {dagen_zonder_prijs} dag(en) ontbrak zelfs een prijs -- die dagen tellen niet "
+                "mee in de berekening."
+            )
+        kanttekeningen.append(kanttekening_geschat)
+
+    conn.close()
+
     return {
-        "sinds": eerste_dag.strftime("%d-%m-%Y"),
-        "aantal_dagen": aantal_dagen,
+        "sinds": (geschat_start or echt_start).strftime("%d-%m-%Y"),
+        "eerste_meetdatum": eerste_dag_logging.strftime("%d-%m-%Y"),
+        "aantal_dagen": aantal_dagen + dagen_geschat,
         "posten": posten,
+        "posten_geschat": posten_geschat,
+        "dagen_geschat": dagen_geschat,
         "totaal": round(totaal, 2),
         "kanttekeningen": kanttekeningen,
     }
+
+
+def _dagelijkse_totaalkosten(vanaf: date, tot: date, kosten: list[dict]) -> dict[str, float]:
+    """Totale kosten (elektriciteit, vaste kosten + variabel) per
+    kalenderdag over het opgegeven bereik -- voor de uitsplitsingsgrafiek
+    onder de rekening. Combineert echte dagen (uit kosten_vergelijking(),
+    per dag het verschil in cumulatief_dynamisch) met geschatte dagen
+    (gemiddeld dagprofiel x EPEX-dagprijs) vóór het begin van de logging."""
+    conn = _connect()
+    globale_eerste = conn.execute("SELECT * FROM metingen ORDER BY timestamp ASC LIMIT 1").fetchone()
+    laatste = conn.execute("SELECT * FROM metingen ORDER BY timestamp DESC LIMIT 1").fetchone()
+    if globale_eerste is None or laatste is None:
+        conn.close()
+        return {}
+    eerste_dag_logging = datetime.fromisoformat(globale_eerste["timestamp"]).date()
+
+    vaste_per_dag = (
+        config.ELEKTRICITEIT_VASTE_LEVERINGSKOSTEN_PER_DAG
+        + config.ELEKTRICITEIT_NETBEHEERKOSTEN_PER_DAG
+        - config.ELEKTRICITEIT_VERMINDERING_ENERGIEBELASTING_PER_DAG
+    )
+
+    resultaat: dict[str, float] = {}
+
+    dynamisch_per_dag = {}
+    vorige_cum = 0.0
+    for rij in kosten:
+        dynamisch_per_dag[rij["dag"]] = rij["cumulatief_dynamisch"] - vorige_cum
+        vorige_cum = rij["cumulatief_dynamisch"]
+
+    dag_cursor = max(vanaf, eerste_dag_logging)
+    while dag_cursor <= tot:
+        sleutel = dag_cursor.isoformat()
+        resultaat[sleutel] = dynamisch_per_dag.get(sleutel, 0.0) + vaste_per_dag
+        dag_cursor += timedelta(days=1)
+
+    if vanaf < eerste_dag_logging:
+        eerste = conn.execute(
+            "SELECT * FROM metingen WHERE timestamp >= ? ORDER BY timestamp ASC LIMIT 1",
+            (eerste_dag_logging.isoformat(),),
+        ).fetchone()
+        laatste_dag_echt = datetime.fromisoformat(laatste["timestamp"]).date()
+        aantal_dagen_echt = max(1, (laatste_dag_echt - eerste_dag_logging).days + 1)
+        profiel_import = max(0.0, laatste["energy_import_kwh"] - eerste["energy_import_kwh"]) / aantal_dagen_echt
+        profiel_export = max(0.0, laatste["energy_export_kwh"] - eerste["energy_export_kwh"]) / aantal_dagen_echt
+
+        prijzen_rijen = conn.execute(
+            "SELECT kwartier_start, prijs_kwh FROM prijzen WHERE kwartier_start >= ? AND kwartier_start < ?",
+            (vanaf.isoformat(), eerste_dag_logging.isoformat()),
+        ).fetchall()
+        prijs_per_dag: dict[str, list[float]] = {}
+        for r in prijzen_rijen:
+            prijs_per_dag.setdefault(r["kwartier_start"][:10], []).append(r["prijs_kwh"])
+        gem_prijs_per_dag = {d: sum(v) / len(v) for d, v in prijs_per_dag.items()}
+
+        elek_historie = smp.historie_lezen().get("elektriciteit", {})
+
+        dag_cursor = vanaf
+        while dag_cursor < eerste_dag_logging:
+            sleutel = dag_cursor.isoformat()
+            prijs = gem_prijs_per_dag.get(sleutel)
+            if prijs is not None:
+                dag_echt = elek_historie.get(sleutel)
+                dag_import, dag_export = (
+                    (dag_echt["import"], dag_echt["export"]) if dag_echt is not None
+                    else (profiel_import, profiel_export)
+                )
+                resultaat[sleutel] = (dag_import - dag_export) * prijs + vaste_per_dag
+            dag_cursor += timedelta(days=1)
+
+    conn.close()
+    return resultaat
+
+
+def rekening_uitsplitsing(vanaf: date, tot: date, kosten: list[dict]) -> list[dict]:
+    """Kosten per periode (dag/week/maand/jaar, automatisch gekozen op de
+    lengte van het bereik) voor de grafiek onder de geschatte rekening."""
+    dagkosten = _dagelijkse_totaalkosten(vanaf, tot, kosten)
+    if not dagkosten:
+        return []
+
+    dagen_in_bereik = (tot - vanaf).days + 1
+    if dagen_in_bereik <= 31:
+        granulariteit = "dag"
+    elif dagen_in_bereik <= 84:
+        granulariteit = "week"
+    elif dagen_in_bereik <= 730:
+        granulariteit = "maand"
+    else:
+        granulariteit = "jaar"
+
+    per_bucket: dict[str, float] = {}
+    labels: dict[str, str] = {}
+    for dag_iso, bedrag in dagkosten.items():
+        dag = date.fromisoformat(dag_iso)
+        if granulariteit == "dag":
+            sleutel, label = dag_iso, f"{dag.day} {_MAANDNAMEN[dag.month - 1]}"
+        elif granulariteit == "week":
+            maandag = dag - timedelta(days=dag.weekday())
+            _, iso_week, _ = dag.isocalendar()
+            sleutel, label = maandag.isoformat(), f"wk {iso_week}"
+        elif granulariteit == "maand":
+            sleutel = f"{dag.year}-{dag.month:02d}"
+            label = f"{_MAANDNAMEN[dag.month - 1]} {dag.year}"
+        else:
+            sleutel, label = str(dag.year), str(dag.year)
+        labels[sleutel] = label
+        per_bucket[sleutel] = per_bucket.get(sleutel, 0.0) + bedrag
+
+    return [
+        {"label": labels[sleutel], "bedrag": round(bedrag, 2)}
+        for sleutel, bedrag in sorted(per_bucket.items())
+    ]
 
 
 def kosten_vergelijking() -> list[dict]:
@@ -496,3 +787,74 @@ def kosten_vergelijking() -> list[dict]:
             "cumulatief_dynamisch": round(cumulatief_dyn, 2),
         })
     return resultaat
+
+
+# --- Voorschot (eigen invoer, geen meetdata) --------------------------------
+# Puur wat Jacob zelf maandelijks aan zijn energieleverancier betaalt --
+# geen afgeleide meetdata, dus opgeslagen in een eigen JSON-bestand naast
+# de (read-only) logger-database, niet erin.
+
+def voorschotten_lezen() -> list[dict]:
+    """Alle voorschotregels, oplopend op datum: [{'vanaf': 'YYYY-MM-DD',
+    'bedrag': 123.45}, ...]."""
+    if not os.path.exists(config.VOORSCHOT_PAD):
+        return []
+    with open(config.VOORSCHOT_PAD, "r", encoding="utf-8") as f:
+        regels = json.load(f)
+    return sorted(regels, key=lambda r: r["vanaf"])
+
+
+def voorschot_toevoegen(vanaf: date, bedrag: float) -> None:
+    """Voegt een voorschotregel toe, of overschrijft de bestaande regel voor
+    diezelfde maand als die al bestaat."""
+    regels = voorschotten_lezen()
+    vanaf_iso = vanaf.isoformat()
+    regels = [r for r in regels if r["vanaf"] != vanaf_iso]
+    regels.append({"vanaf": vanaf_iso, "bedrag": round(bedrag, 2)})
+    regels.sort(key=lambda r: r["vanaf"])
+    os.makedirs(os.path.dirname(config.VOORSCHOT_PAD), exist_ok=True)
+    with open(config.VOORSCHOT_PAD, "w", encoding="utf-8") as f:
+        json.dump(regels, f, ensure_ascii=False, indent=2)
+
+
+def voorschot_voor_periode(vanaf: date, tot: date) -> float | None:
+    """Som van het geldende voorschotbedrag per maand in [vanaf, tot] --
+    het laatst bekende bedrag vóór of op een maand geldt door tot een
+    nieuwe regel. None als er nog geen enkele voorschotregel is."""
+    regels = voorschotten_lezen()
+    if not regels:
+        return None
+
+    totaal = 0.0
+    maand_cursor = vanaf.replace(day=1)
+    while maand_cursor <= tot:
+        geldend = None
+        for r in regels:
+            if r["vanaf"] <= maand_cursor.isoformat():
+                geldend = r["bedrag"]
+            else:
+                break
+        if geldend is not None:
+            dagen_in_maand_in_bereik = sum(
+                1 for d in _dagen_in_maand(maand_cursor) if vanaf <= d <= tot
+            )
+            dagen_in_maand_totaal = len(_dagen_in_maand(maand_cursor))
+            totaal += geldend * dagen_in_maand_in_bereik / dagen_in_maand_totaal
+        if maand_cursor.month == 12:
+            maand_cursor = maand_cursor.replace(year=maand_cursor.year + 1, month=1)
+        else:
+            maand_cursor = maand_cursor.replace(month=maand_cursor.month + 1)
+    return round(totaal, 2)
+
+
+def _dagen_in_maand(eerste_van_maand: date) -> list[date]:
+    if eerste_van_maand.month == 12:
+        volgende_maand = eerste_van_maand.replace(year=eerste_van_maand.year + 1, month=1)
+    else:
+        volgende_maand = eerste_van_maand.replace(month=eerste_van_maand.month + 1)
+    dagen = []
+    d = eerste_van_maand
+    while d < volgende_maand:
+        dagen.append(d)
+        d += timedelta(days=1)
+    return dagen

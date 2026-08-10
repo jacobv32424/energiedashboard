@@ -8,6 +8,32 @@ DB_PATH = os.environ.get(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "dev_data", "energie.db"),
 )
 
+# Pad naar het voorschotten-bestand -- puur eigen invoer van Jacob (geen
+# afgeleide meetdata), dus geen plek in de (read-only) logger-database.
+# Zelfde dev/prod-scheiding als DB_PATH hierboven.
+VOORSCHOT_PAD = os.environ.get(
+    "ENERGIEDASHBOARD_VOORSCHOT_PAD",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "dev_data", "voorschotten.json"),
+)
+
+# slimmemeterportal.nl UserAPI -- echte historische kwartierdata (elektriciteit
+# + gas, terug tot 2015), gebruikt om de periode vóór het begin van de eigen
+# P1-logging (2 juli 2026) met echte data te vullen i.p.v. een schatting.
+# De sleutel komt bij voorkeur uit een omgevingsvariabele; lokaal (dev) valt
+# dit terug op een bestand in dev_data/ (buiten git, zie .gitignore) zodat
+# de sleutel nooit in de repository terechtkomt.
+SLIMMEMETERPORTAL_API_KEY = os.environ.get("SLIMMEMETERPORTAL_API_KEY", "")
+if not SLIMMEMETERPORTAL_API_KEY:
+    _sleutel_pad = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dev_data", "slimmemeterportal_api_key.txt")
+    if os.path.exists(_sleutel_pad):
+        with open(_sleutel_pad, "r", encoding="utf-8") as f:
+            SLIMMEMETERPORTAL_API_KEY = f.read().strip()
+
+SLIMMEMETERPORTAL_HISTORIE_PAD = os.environ.get(
+    "ENERGIEDASHBOARD_HISTORIE_PAD",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "dev_data", "historie_slimmemeter.json"),
+)
+
 # Alle bedragen hieronder komen letterlijk van het Vandebron-contractoverzicht
 # van Jacob en van rechtstreekse navraag bij Vandebron (2026-07-28),
 # "inclusief btw". Dit dashboard is een apart project van de logger-service

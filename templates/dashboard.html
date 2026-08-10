@@ -84,13 +84,10 @@ header.top .sub{font-size:13px; color:var(--inkt-zacht); margin-top:4px}
 .legenda span{display:inline-flex; align-items:center; gap:6px}
 .legenda i{width:10px; height:10px; border-radius:3px; display:inline-block}
 
-.besparing{
-  margin-top:10px; padding-top:10px; border-top:1px solid var(--lijn);
-  font-size:13px; color:var(--inkt-zacht);
-}
-.besparing strong{color:var(--k,var(--goed)); font-size:15px}
-
 footer{text-align:center; font-size:11.5px; color:var(--inkt-zacht); margin-top:30px}
+
+.merk-badge{position:fixed; right:12px; bottom:12px; height:64px; opacity:.85; transition:opacity .2s; z-index:10}
+.merk-badge:hover{opacity:1}
 
 .navigator{
   display:flex; align-items:center; justify-content:space-between; gap:14px;
@@ -128,12 +125,37 @@ table.tarieftabel{width:100%; border-collapse:collapse; font-size:12.5px}
 table.tarieftabel td{padding:5px 0; border-bottom:1px dashed var(--lijn)}
 table.tarieftabel td:last-child{text-align:right; font-family:"IBM Plex Mono",monospace; white-space:nowrap}
 
-.rekening-posten{width:100%; border-collapse:collapse; font-size:13px; margin-top:6px}
+.rekening-posten{width:100%; border-collapse:collapse; font-size:13px; margin-top:2px}
 .rekening-posten td{padding:6px 0; border-bottom:1px solid var(--lijn)}
 .rekening-posten td:last-child{text-align:right; font-family:"IBM Plex Mono",monospace}
+.rekening-posten td.goed{color:var(--goed)}
 .rekening-posten tr.totaal td{font-weight:700; border-bottom:none; padding-top:10px; font-size:14.5px}
+.rekening-posten tr.subtotaal td{font-weight:600; border-bottom:none; padding-top:4px; padding-bottom:10px; font-size:12.5px; color:var(--inkt-zacht)}
+.rekening-groep{font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--inkt-zacht); margin:14px 0 2px}
+.rekening-groep.geschat{color:var(--prijs)}
+.geschat-label{margin-top:16px; padding-top:12px; border-top:1px dashed var(--lijn); font-size:12px; font-weight:600; color:var(--prijs)}
 .kanttekeningen{margin-top:10px; font-size:11.5px; color:var(--inkt-zacht); line-height:1.6}
 .kanttekeningen li{margin-bottom:2px}
+
+.rekening-datumkiezer{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:2px 0 10px; font-size:12.5px}
+.rekening-datumkiezer label{display:flex; align-items:center; gap:6px; color:var(--inkt-zacht)}
+.rekening-datumkiezer .tot-heden{color:var(--inkt-zacht); font-style:italic}
+.rekening-datumkiezer input[type=date],
+.voorschot-formulier input{
+  font:inherit; font-size:12.5px; padding:5px 9px; border:1px solid var(--lijn); border-radius:8px;
+  background:var(--paneel); color:var(--inkt);
+}
+.voorschot-formulier input[name=bedrag]{width:90px}
+.rekening-datumkiezer button, .voorschot-formulier button{
+  font:inherit; font-size:12.5px; padding:6px 14px; border:1px solid var(--accent);
+  border-radius:8px; background:var(--accent); color:#fff; cursor:pointer;
+}
+.rekening-datumkiezer button:hover, .voorschot-formulier button:hover{opacity:.9}
+
+.voorschot-blok{margin-top:18px; padding-top:14px; border-top:1px solid var(--lijn)}
+.voorschot-tabel{margin-bottom:10px}
+.voorschot-formulier{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:10px; font-size:12.5px}
+.voorschot-formulier label{display:flex; align-items:center; gap:6px; color:var(--inkt-zacht)}
 
 .over{margin-top:16px}
 .over h2{font-family:"Fraunces",serif; font-size:19px; font-weight:600; margin:0 0 6px}
@@ -160,6 +182,7 @@ table.tarieftabel td:last-child{text-align:right; font-family:"IBM Plex Mono",mo
     <div class="top-rechts">
       <span class="live-punt" title="Wordt elke minuut gelogd"></span>
       <span class="sub mono" id="laatste-update"></span>
+      <a class="theme-knop" href="{{ url_for('handleiding') }}" style="text-decoration:none">Handleiding</a>
       <button class="theme-knop" id="themaKnop" type="button">Donker/licht</button>
     </div>
   </header>
@@ -209,6 +232,13 @@ table.tarieftabel td:last-child{text-align:right; font-family:"IBM Plex Mono",mo
       <div class="detail">dynamisch t.o.v. vast, sinds {{ totaal.sinds }}</div>
     </div>
     {% endif %}
+    {% if zelfvoorzienendheid %}
+    <div class="kpi" style="--k:var(--export)">
+      <div class="label">Zelfvoorzienend</div>
+      <div class="waarde"><span class="mono">{{ "%.1f"|format(zelfvoorzienendheid.percentage) }}</span><span class="eenheid">% (minimaal)</span></div>
+      <div class="detail">dekking eigen verbruik door je panelen, sinds {{ zelfvoorzienendheid.sinds }}</div>
+    </div>
+    {% endif %}
   </section>
 
   <section class="panelen">
@@ -226,30 +256,10 @@ table.tarieftabel td:last-child{text-align:right; font-family:"IBM Plex Mono",mo
       <div class="chart-houder klein"><canvas id="grafiekZon"></canvas></div>
     </div>
 
-    <div class="rij-twee">
-      <div class="paneel">
-        <h2>Verbruik per {{ {"dag":"uur","week":"dag","maand":"dag","jaar":"maand"}[periode] }}</h2>
-        <div class="uitleg">{{ navigatie.label }}, import vs. teruglevering.</div>
-        <div class="chart-houder klein"><canvas id="grafiekDagelijks"></canvas></div>
-      </div>
-      <div class="paneel">
-        <h2>Vast vs. dynamisch tarief</h2>
-        <div class="uitleg">Cumulatieve kosten sinds het begin van de logging, op basis van je eigen verbruik.</div>
-        <div class="chart-houder klein"><canvas id="grafiekKosten"></canvas></div>
-        <div class="legenda">
-          <span><i style="background:var(--prijs)"></i>Vast (normaal/dal)</span>
-          <span><i style="background:var(--export)"></i>Dynamisch (EPEX)</span>
-        </div>
-        {% if kosten %}
-        {% set laatste = kosten[-1] %}
-        {% set verschil = laatste.cumulatief_vast - laatste.cumulatief_dynamisch %}
-        <div class="besparing" style="--k:{{ 'var(--goed)' if verschil >= 0 else 'var(--import)' }}">
-          Dynamisch tarief is tot nu toe
-          <strong class="mono">&euro; {{ "%.2f"|format(verschil|abs) }}</strong>
-          {{ "voordeliger" if verschil >= 0 else "duurder" }} dan je vaste tarief.
-        </div>
-        {% endif %}
-      </div>
+    <div class="paneel">
+      <h2>Verbruik per {{ {"dag":"uur","week":"dag","maand":"dag","jaar":"maand"}[periode] }}</h2>
+      <div class="uitleg">{{ navigatie.label }}, import vs. teruglevering.</div>
+      <div class="chart-houder klein"><canvas id="grafiekDagelijks"></canvas></div>
     </div>
 
     <div class="paneel">
@@ -267,18 +277,85 @@ table.tarieftabel td:last-child{text-align:right; font-family:"IBM Plex Mono",mo
   {% if rekening %}
   <section class="paneel">
     <h2>Geschatte energierekening</h2>
-    <div class="uitleg">Proforma, sinds {{ rekening.sinds }} ({{ rekening.aantal_dagen }} dagen) &mdash; op basis van je eigen verbruik en je Vandebron-contract.</div>
+    <form class="rekening-datumkiezer" method="get">
+      <input type="hidden" name="periode" value="{{ periode }}">
+      <label>Vanaf <input type="date" name="rekening_vanaf" value="{{ rekening_vanaf }}"></label>
+      <span class="tot-heden">tot heden</span>
+      <button type="submit">Toepassen</button>
+    </form>
+    <div class="uitleg">
+      Sinds {{ rekening.sinds }} ({{ rekening.aantal_dagen }} dagen{% if rekening.dagen_geschat %}, waarvan {{ rekening.dagen_geschat }} geschat{% endif %}) &mdash; op basis van je eigen verbruik en je Vandebron-contract.
+    </div>
+
+    {% for cat, titel in [("elektriciteit", "Elektriciteit"), ("gas", "Gas")] %}
+      {% set posten_cat = rekening.posten | selectattr("categorie", "equalto", cat) | list %}
+      {% if posten_cat %}
+      <h4 class="rekening-groep">{{ titel }}</h4>
+      <table class="rekening-posten">
+        {% for post in posten_cat %}
+        <tr><td>{{ post.naam }}</td><td class="{{ 'goed' if post.bedrag < 0 else '' }}">&euro; {{ "%.2f"|format(post.bedrag) }}</td></tr>
+        {% endfor %}
+        <tr class="subtotaal"><td>Subtotaal {{ titel|lower }}</td><td>&euro; {{ "%.2f"|format(posten_cat | sum(attribute="bedrag")) }}</td></tr>
+      </table>
+      {% endif %}
+    {% endfor %}
+
+    {% if rekening.posten_geschat %}
+    <div class="geschat-label">Geschat deel &mdash; {{ rekening.dagen_geschat }} dagen vóór het begin van de logging ({{ rekening.eerste_meetdatum }})</div>
+    {% for cat, titel in [("elektriciteit", "Elektriciteit"), ("gas", "Gas")] %}
+      {% set posten_cat_g = rekening.posten_geschat | selectattr("categorie", "equalto", cat) | list %}
+      {% if posten_cat_g %}
+      <h4 class="rekening-groep geschat">{{ titel }} (geschat)</h4>
+      <table class="rekening-posten">
+        {% for post in posten_cat_g %}
+        <tr><td>{{ post.naam }}</td><td class="{{ 'goed' if post.bedrag < 0 else '' }}">&euro; {{ "%.2f"|format(post.bedrag) }}</td></tr>
+        {% endfor %}
+        <tr class="subtotaal"><td>Subtotaal {{ titel|lower }} (geschat)</td><td>&euro; {{ "%.2f"|format(posten_cat_g | sum(attribute="bedrag")) }}</td></tr>
+      </table>
+      {% endif %}
+    {% endfor %}
+    {% endif %}
+
     <table class="rekening-posten">
-      {% for post in rekening.posten %}
-      <tr><td>{{ post.naam }}</td><td>&euro; {{ "%.2f"|format(post.bedrag) }}</td></tr>
-      {% endfor %}
       <tr class="totaal"><td>Totaal geschat</td><td>&euro; {{ "%.2f"|format(rekening.totaal) }}</td></tr>
     </table>
+
+    {% if rekening_uitsplitsing and rekening_uitsplitsing|length > 1 %}
+    <div class="chart-houder klein"><canvas id="grafiekRekening"></canvas></div>
+    {% endif %}
+
     {% if rekening.kanttekeningen %}
     <ul class="kanttekeningen">
       {% for k in rekening.kanttekeningen %}<li>{{ k }}</li>{% endfor %}
     </ul>
     {% endif %}
+
+    <div class="voorschot-blok">
+      <h4 class="rekening-groep">Voorschot</h4>
+      {% if voorschot_ontvangen is not none %}
+      {% set verschil_voorschot = voorschot_ontvangen - rekening.totaal %}
+      <div class="uitleg">
+        Voorschot ontvangen: <strong class="mono">&euro; {{ "%.2f"|format(voorschot_ontvangen) }}</strong>
+        &mdash; Werkelijke kosten: <strong class="mono">&euro; {{ "%.2f"|format(rekening.totaal) }}</strong>
+        &mdash; Verschil: <strong class="mono" style="color:{{ 'var(--goed)' if verschil_voorschot >= 0 else 'var(--import)' }}">&euro; {{ "%.2f"|format(verschil_voorschot|abs) }}</strong>
+        {{ "over (je krijgt geld terug)" if verschil_voorschot >= 0 else "tekort (je moet bijbetalen)" }}
+      </div>
+      {% else %}
+      <div class="uitleg">Nog geen voorschotbedrag ingevoerd &mdash; vul hieronder in wat je maandelijks aan je energieleverancier betaalt.</div>
+      {% endif %}
+      {% if voorschotten %}
+      <table class="rekening-posten voorschot-tabel">
+        {% for v in voorschotten %}
+        <tr><td>Vanaf {{ v.vanaf }}</td><td>&euro; {{ "%.2f"|format(v.bedrag) }} / maand</td></tr>
+        {% endfor %}
+      </table>
+      {% endif %}
+      <form class="voorschot-formulier" method="post" action="{{ url_for('voorschot_toevoegen') }}">
+        <label>Vanaf <input type="date" name="vanaf" required></label>
+        <label>&euro; <input type="number" name="bedrag" step="0.01" min="0" required placeholder="0.00"></label>
+        <button type="submit">Voorschot opslaan</button>
+      </form>
+    </div>
   </section>
   {% endif %}
 
@@ -384,20 +461,25 @@ table.tarieftabel td:last-child{text-align:right; font-family:"IBM Plex Mono",mo
       </div>
       <div class="kenmerk" style="--k:var(--prijs)">
         <div class="stip">&#128179;</div>
-        <div><h3>Wat kost het nou écht?</h3><p>Een geschatte rekening: energie plus alle vaste kosten en heffingen samen &mdash; niet alleen de kale kWh-prijs.</p></div>
+        <div><h3>Wat kost het nou écht?</h3><p>Een geschatte rekening: energie plus alle vaste kosten en heffingen samen, met een zelf te kiezen begindatum (altijd tot heden) en een vergelijking met je voorschot.</p></div>
+      </div>
+      <div class="kenmerk" style="--k:var(--export)">
+        <div class="stip">&#127793;</div>
+        <div><h3>Hoe zelfvoorzienend ben je?</h3><p>Een ondergrens-percentage van hoeveel van je verbruik minimaal door je eigen panelen wordt gedekt.</p></div>
       </div>
     </div>
   </section>
 
-  <footer>Energiedashboard &middot; ververst bij elke paginalaad &middot; data via energy_logger / price_fetcher</footer>
+  <footer>Energiedashboard &middot; ververst bij elke paginalaad &middot; data via energy_logger / price_fetcher / slimmemeterportal.nl</footer>
 </div>
+<img class="merk-badge" src="{{ url_for('static', filename='img/jacobs-creative-mind-badge.png') }}" alt="Jacob's Creative Mind">
 
 <script>
 const VERMOGEN = {{ vermogen | tojson }};
 const DAGELIJKS = {{ verbruik | tojson }};
 const ZONPATROON = {{ zonpatroon | tojson }};
 const GAS = {{ gas | tojson }};
-const KOSTEN = {{ kosten | tojson }};
+const REKENING_UITSPLITSING = {{ rekening_uitsplitsing | tojson }};
 const HUIDIGE_STAND = {{ stand | tojson }};
 
 const root = document.documentElement;
@@ -430,10 +512,6 @@ function stijl() {
 function kortTijd(iso) {
   const d = new Date(iso);
   return d.toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" });
-}
-function kortDag(iso) {
-  const d = new Date(iso + "T00:00:00Z");
-  return d.toLocaleDateString("nl-NL", { day: "numeric", month: "short" });
 }
 
 document.getElementById("laatste-update").textContent = HUIDIGE_STAND && HUIDIGE_STAND.tijdstip
@@ -541,25 +619,29 @@ if (canvasGas && GAS.length) {
   });
 }
 
-new Chart(document.getElementById("grafiekKosten"), {
-  type: "line",
-  data: {
-    labels: KOSTEN.map(k => kortDag(k.dag)),
-    datasets: [
-      { label: "Vast", data: KOSTEN.map(k => k.cumulatief_vast), borderColor: s.prijs, backgroundColor: s.prijs, tension: .2, pointRadius: 0, borderWidth: 2 },
-      { label: "Dynamisch", data: KOSTEN.map(k => k.cumulatief_dynamisch), borderColor: s.exp, backgroundColor: s.exp, tension: .2, pointRadius: 0, borderWidth: 2 },
-    ],
-  },
-  options: {
-    responsive: true, maintainAspectRatio: false,
-    interaction: { mode: "index", intersect: false },
-    scales: {
-      x: { grid: { display: false }, ticks: { color: s.inktZacht, maxTicksLimit: 6 } },
-      y: { grid: { color: s.lijn }, ticks: { color: s.inktZacht }, title: { display: true, text: "€ cumulatief", color: s.inktZacht } },
+const canvasRekening = document.getElementById("grafiekRekening");
+if (canvasRekening && REKENING_UITSPLITSING.length > 1) {
+  new Chart(canvasRekening, {
+    type: "bar",
+    data: {
+      labels: REKENING_UITSPLITSING.map(r => r.label),
+      datasets: [{
+        label: "Kosten (€)",
+        data: REKENING_UITSPLITSING.map(r => r.bedrag),
+        backgroundColor: (c) => c.dataIndex === REKENING_UITSPLITSING.length - 1 ? s.accent : (s.prijs + "99"),
+        borderRadius: 5, maxBarThickness: 30,
+      }],
     },
-    plugins: { legend: { display: false } },
-  },
-});
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { grid: { display: false }, ticks: { color: s.inktZacht, maxTicksLimit: 12 } },
+        y: { grid: { color: s.lijn }, ticks: { color: s.inktZacht }, title: { display: true, text: "€ per periode", color: s.inktZacht } },
+      },
+      plugins: { legend: { display: false } },
+    },
+  });
+}
 </script>
 </body>
 </html>

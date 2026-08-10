@@ -1,5 +1,7 @@
+import os
 from datetime import date, timezone, datetime as dt
 
+import markdown
 from flask import Flask, redirect, render_template, request, url_for
 
 import config
@@ -25,14 +27,35 @@ def dashboard():
     except ValueError:
         referentie = dt.now(timezone.utc).date()
 
+    rekening_vanaf_param = request.args.get("rekening_vanaf", "")
+    try:
+        rekening_vanaf = date.fromisoformat(rekening_vanaf_param) if rekening_vanaf_param else None
+    except ValueError:
+        rekening_vanaf = None
+
     navigatie = dataset.periode_navigatie(periode, referentie)
     kosten = dataset.kosten_vergelijking()
+    rekening = dataset.geschatte_rekening(kosten, vanaf=rekening_vanaf)
+
+    uitsplitsing = []
+    if rekening:
+        vanaf_grafiek = rekening_vanaf or dt.strptime(rekening["eerste_meetdatum"], "%d-%m-%Y").date()
+        tot_grafiek = dt.now(timezone.utc).date()
+        uitsplitsing = dataset.rekening_uitsplitsing(vanaf_grafiek, tot_grafiek, kosten)
+        voorschot_ontvangen = dataset.voorschot_voor_periode(vanaf_grafiek, tot_grafiek)
+    else:
+        voorschot_ontvangen = None
 
     return render_template(
         "dashboard.html",
         stand=dataset.huidige_stand(),
         totaal=dataset.totaal_bespaard(kosten),
-        rekening=dataset.geschatte_rekening(kosten),
+        rekening=rekening,
+        rekening_uitsplitsing=uitsplitsing,
+        rekening_vanaf=rekening_vanaf_param,
+        zelfvoorzienendheid=dataset.zelfvoorzienendheid(vanaf=rekening_vanaf),
+        voorschotten=dataset.voorschotten_lezen(),
+        voorschot_ontvangen=voorschot_ontvangen,
         vermogen=dataset.vermogen_serie(periode, referentie),
         verbruik=dataset.verbruik_per_periode(periode, referentie),
         gas=dataset.gas_per_periode(periode, referentie),
@@ -43,6 +66,30 @@ def dashboard():
         config=config,
         database_pad=config.DB_PATH,
     )
+
+
+@app.route("/voorschot", methods=["POST"])
+def voorschot_toevoegen():
+    vanaf_param = request.form.get("vanaf", "")
+    bedrag_param = request.form.get("bedrag", "")
+    try:
+        vanaf = date.fromisoformat(vanaf_param)
+        bedrag = float(bedrag_param.replace(",", "."))
+        dataset.voorschot_toevoegen(vanaf, bedrag)
+    except (ValueError, TypeError):
+        pass
+    return redirect(request.referrer or url_for("dashboard"))
+
+
+@app.route("/handleiding")
+def handleiding():
+    pad = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Handleiding.md")
+    with open(pad, "r", encoding="utf-8") as f:
+        tekst = f.read()
+    html = markdown.markdown(
+        tekst, extensions=["tables", "toc"], extension_configs={"toc": {"toc_depth": "2-3"}},
+    )
+    return render_template("handleiding.html", inhoud=html)
 
 
 if __name__ == "__main__":

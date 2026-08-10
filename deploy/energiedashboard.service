@@ -8,6 +8,11 @@ User=jacob
 Group=jacob
 WorkingDirectory=/opt/energiedashboard
 Environment=ENERGIEDASHBOARD_DB_PAD=/media/jacob/PortableSSD/energieproject/data/energie.db
+Environment=ENERGIEDASHBOARD_VOORSCHOT_PAD=/media/jacob/PortableSSD/energiedashboard/voorschotten.json
+Environment=ENERGIEDASHBOARD_HISTORIE_PAD=/media/jacob/PortableSSD/energiedashboard/historie_slimmemeter.json
+# SLIMMEMETERPORTAL_API_KEY staat NIET hier (dit bestand is wereld-leesbaar)
+# maar in /etc/energiedashboard/env (chmod 600) -- zie deploy/bijwerken-op-pi.sh.
+EnvironmentFile=-/etc/energiedashboard/env
 ExecStart=/opt/energiedashboard/.venv/bin/python app.py
 Restart=on-failure
 RestartSec=5

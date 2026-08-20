@@ -177,11 +177,18 @@ cache, onvermijdelijk bij twee ongecachede full-table-verwerkingen),
 tweede/derde laadbeurt binnen het cache-venster ~0,45 sec. Gedeployed via
 `deploy/bijwerken-op-pi.sh`, service netjes herstart.
 
-**Nog steeds een koude-cache-moment na elke herstart/na 5 minuten
-inactiviteit** — bewust niet verder opgelost deze beurt (bijv. een
-achtergrond-ververser die de cache al bijhoudt vóórdat iemand de pagina
-opent zou dat wegnemen, maar is een nieuwe, aparte uitbreiding, geen
-onderdeel van "dezelfde bug netjes afmaken").
+**Koude-cache-moment ook opgelost (20-08-2026, via Commandocentrums
+Gezondheidscontrole)**: precies de hierboven genoemde achtergrond-
+ververser, alsnog gebouwd nadat de Gezondheidscontrole dit drie keer
+als "traag" (~15 sec) bleef melden. `app.py`: `_cache_ververser()`,
+een daemon-thread (gestart in de `__main__`-guard) die elke 4 min —
+korter dan de 5-minuten cache-geldigheid van `kosten_vergelijking()`/
+`zonpatroon_per_uur()` — beide functies alvast aanroept. Een bezoeker
+treft zo altijd de warme cache, ook de eerste na een herstart. Live
+geverifieerd op de Pi: 20 sec na een herstart al 1,3 sec laadtijd
+(was 15-16 sec), en drie vervolgmetingen consistent 0,5-0,7 sec. De
+Gezondheidscontrole-tab bevestigt dit ook: van "🟡 traag" naar "🟢 ok"
+(0,5 sec) in de eerstvolgende controle na de deploy.
 
 ## Documentatie bijhouden — twee plekken, niet één
 

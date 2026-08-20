@@ -1,4 +1,6 @@
 import os
+import threading
+import time
 from datetime import date, timezone, datetime as dt
 
 import markdown
@@ -92,5 +94,23 @@ def handleiding():
     return render_template("handleiding.html", inhoud=html)
 
 
+# Cache-ververser (20-08-2026) -- kosten_vergelijking()/zonpatroon_per_uur()
+# lezen de volle metingen-tabel (traag op de externe SSD) en zijn 5 min
+# gecached, maar de EERSTE bezoeker na een herstart of na 5 min stilte
+# trof nog steeds de trage, "koude" berekening (~15-16 sec). Deze
+# achtergrondthread ververst beide caches elke 4 min -- korter dan hun
+# 5-minuten-geldigheid -- zodat ze nooit koud worden zolang de service
+# draait. Een bezoeker treft dus altijd de warme (snelle) cache.
+def _cache_ververser() -> None:
+    while True:
+        try:
+            dataset.kosten_vergelijking()
+            dataset.zonpatroon_per_uur()
+        except Exception:
+            pass  # de achtergrondthread mag nooit stoppen door één mislukte poging
+        time.sleep(240)  # 4 min, ruim binnen de 5-minuten cache-geldigheid
+
+
 if __name__ == "__main__":
+    threading.Thread(target=_cache_ververser, daemon=True).start()
     app.run(host="0.0.0.0", port=8421, debug=False)

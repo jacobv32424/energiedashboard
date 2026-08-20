@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import time
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -19,7 +20,13 @@ _MAANDNAMEN = [
 
 
 def _connect():
-    conn = sqlite3.connect(config.DB_PATH)
+    # timeout=10: zonder dit faalt een query meteen met "database is
+    # locked" als energy_logger.py net op dat moment schrijft (SQLite's
+    # standaard-timeout is 0 seconden) -- met een timeout wacht sqlite3
+    # gewoon even tot de schrijver klaar is. Zie ook: journal_mode=WAL is
+    # ingeschakeld op de database zelf (eenmalig via PRAGMA op de Pi,
+    # 20-08-2026) -- de eigenlijke fix, dit is het vangnet.
+    conn = sqlite3.connect(config.DB_PATH, timeout=10)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -707,13 +714,28 @@ def rekening_uitsplitsing(vanaf: date, tot: date, kosten: list[dict]) -> list[di
     ]
 
 
+_KOSTEN_VERGELIJKING_CACHE: dict = {"data": None, "opgehaald_op": 0.0}
+_KOSTEN_VERGELIJKING_CACHE_SECONDEN = 300  # 5 min
+
+
 def kosten_vergelijking() -> list[dict]:
     """Cumulatieve kosten vast vs. dynamisch tarief, per dag, over de hele
     beschikbare geschiedenis -- zelfde rekenlogica als
     energieproject/simulator.py op de Pi (bewust gedupliceerd, zie
     CLAUDE.md: dit dashboard raakt de logger-code niet aan). Dit overzicht
     is bewust niet aan de dag/week/maand/jaar-navigatie gekoppeld: het gaat
-    juist om het totaalbeeld sinds het begin van de logging."""
+    juist om het totaalbeeld sinds het begin van de logging.
+
+    5 minuten in-memory gecached (20-08-2026): deze query leest de VOLLE
+    metingen-tabel (69k+ rijen en groeiend), wat op de externe SSD soms
+    10-20 seconden duurde en tot "database is locked" leidde bij
+    gelijktijdige schrijfacties van energy_logger.py. De cache verandert
+    niets aan de uitkomst (metingen wijzigen niet met terugwerkende
+    kracht), enkel hoe vaak de zware query opnieuw draait."""
+    nu = time.time()
+    cache = _KOSTEN_VERGELIJKING_CACHE
+    if cache["data"] is not None and nu - cache["opgehaald_op"] < _KOSTEN_VERGELIJKING_CACHE_SECONDEN:
+        return cache["data"]
     conn = _connect()
     metingen = conn.execute(
         "SELECT timestamp, energy_import_kwh, energy_export_kwh, "
@@ -786,6 +808,8 @@ def kosten_vergelijking() -> list[dict]:
             "cumulatief_vast": round(cumulatief_vast, 2),
             "cumulatief_dynamisch": round(cumulatief_dyn, 2),
         })
+    cache["data"] = resultaat
+    cache["opgehaald_op"] = nu
     return resultaat
 
 

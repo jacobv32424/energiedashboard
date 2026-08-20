@@ -134,6 +134,33 @@ naar "alle programma", "alles mooi grafisch"). `Handleiding.md` kreeg een
 losse markdown-render + Jinja-render buiten de app, met een headless-
 Chrome-screenshot ter controle.
 
+## "Database is locked" gefixt (20-08-2026)
+
+Ontdekt via Commandocentrums Pi-overzicht: het dashboard gaf een 500-fout
+(`sqlite3.OperationalError: database is locked`) doordat `energy_logger.py`
+op de Pi continu naar dezelfde `energie.db` schrijft terwijl dit dashboard
+leest — zonder WAL-modus en zonder een sqlite3-timeout faalt zo'n botsing
+meteen in plaats van even te wachten. Twee onderdelen, geen van beide raakt
+de logger-code (blijft bij "dit dashboard leest alleen", zie hierboven):
+
+- **`PRAGMA journal_mode=WAL`** eenmalig gezet op `energie.db` zelf (niet
+  in code — een eigenschap van het databasebestand). Vóór deze wijziging
+  is een backup gemaakt (`energie.db.backup-20260820`, op de Pi).
+- **`sqlite3.connect(..., timeout=10)`** in `dataset._connect()` — het
+  vangnet: bij een korte, resterende lock wordt nu even gewacht i.p.v.
+  meteen gefaald.
+- **`kosten_vergelijking()` kreeg een 5-minuten in-memory cache** — deze
+  query leest de VOLLE `metingen`-tabel (69k+ rijen, groeit continu), wat
+  op de externe SSD 10-20 sec kon duren. De cache verandert niets aan de
+  uitkomst, alleen hoe vaak de zware query opnieuw draait.
+
+**Nog niet opgelost, bewust binnen scope gehouden**: de pagina blijft ca.
+7 seconden laden zelfs met warme cache — `huidige_stand()`,
+`zelfvoorzienendheid()`, `vermogen_serie()` e.a. doen elk hun eigen,
+ongecachede query op dezelfde (trage) externe SSD. Verdere caching van
+die functies is een logische vervolgstap, niet in deze beurt meegenomen
+om de fix beperkt en goed te kunnen testen.
+
 ## Documentatie bijhouden — twee plekken, niet één
 
 Bij elke functionele wijziging (grafiek/KPI toegevoegd of verwijderd, doel

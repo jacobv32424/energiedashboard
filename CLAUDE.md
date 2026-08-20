@@ -154,12 +154,34 @@ de logger-code (blijft bij "dit dashboard leest alleen", zie hierboven):
   op de externe SSD 10-20 sec kon duren. De cache verandert niets aan de
   uitkomst, alleen hoe vaak de zware query opnieuw draait.
 
-**Nog niet opgelost, bewust binnen scope gehouden**: de pagina blijft ca.
-7 seconden laden zelfs met warme cache — `huidige_stand()`,
-`zelfvoorzienendheid()`, `vermogen_serie()` e.a. doen elk hun eigen,
-ongecachede query op dezelfde (trage) externe SSD. Verdere caching van
-die functies is een logische vervolgstap, niet in deze beurt meegenomen
-om de fix beperkt en goed te kunnen testen.
+**Vervolgstap, alsnog gedaan (20-08-2026, via Commandocentrums nachtelijke
+Gezondheidscontrole)**: de Gezondheidscontrole signaleerde een paginalaad
+van 15,9 sec. Uitgezocht met een losse profileerpoging op de Pi zelf
+(elke `dataset`-functie apart getimed): niet de SQL-queries zelf (allemaal
+sub-milliseconde dankzij `timestamp`/`kwartier_start` als PRIMARY KEY),
+maar de Python-verwerking ná het ophalen van de volle `metingen`-tabel
+(69k+ rijen) in twee functies: `kosten_vergelijking()` (al gecached sinds
+de vorige fix hierboven, maar duurde ~8 sec bij een koude cache) en
+`zonpatroon_per_uur()` (had nog HELEMAAL geen cache, ~6,6 sec bij élke
+aanroep). Samen verklaarden die twee vrijwel de volledige 15,9 sec.
+`huidige_stand()`/`zelfvoorzienendheid()`/`vermogen_serie()` bleken bij
+het profileren juist al snel (< 0,1 sec) — geen van drieën leest de volle
+tabel.
+
+**Fix**: `zonpatroon_per_uur()` kreeg dezelfde 5-minuten in-memory cache
+als `kosten_vergelijking()` (zelfde patroon: `_ZONPATROON_CACHE`-dict,
+niets aan de uitkomst verandert, alleen hoe vaak de zware verwerking
+opnieuw draait — dit patroon mag hierna, was het antwoord). Geverifieerd
+op de Pi zelf: eerste laadbeurt na een herstart nog steeds ~16 sec (koude
+cache, onvermijdelijk bij twee ongecachede full-table-verwerkingen),
+tweede/derde laadbeurt binnen het cache-venster ~0,45 sec. Gedeployed via
+`deploy/bijwerken-op-pi.sh`, service netjes herstart.
+
+**Nog steeds een koude-cache-moment na elke herstart/na 5 minuten
+inactiviteit** — bewust niet verder opgelost deze beurt (bijv. een
+achtergrond-ververser die de cache al bijhoudt vóórdat iemand de pagina
+opent zou dat wegnemen, maar is een nieuwe, aparte uitbreiding, geen
+onderdeel van "dezelfde bug netjes afmaken").
 
 ## Documentatie bijhouden — twee plekken, niet één
 

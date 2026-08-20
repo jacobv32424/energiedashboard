@@ -304,13 +304,28 @@ def gas_per_periode(periode: str, referentie: date) -> list[dict]:
     return resultaat
 
 
+_ZONPATROON_CACHE: dict = {"data": None, "opgehaald_op": 0.0}
+_ZONPATROON_CACHE_SECONDEN = 300  # 5 min, zelfde patroon/duur als _KOSTEN_VERGELIJKING_CACHE
+
+
 def zonpatroon_per_uur() -> list[dict]:
     """Gemiddelde teruglevering per uur van de dag, over alle beschikbare
     dagen -- laat zien wanneer de panelen typisch het meest opleveren,
     losstaand van welke specifieke dag je op dat moment bekijkt. Dit is
     het enige harde 'zonnegetal' dat uit P1-data valt te halen: de meter
     ziet alleen wat er het net op gaat, niet de rechtstreekse eigen
-    consumptie van opgewekte stroom."""
+    consumptie van opgewekte stroom.
+
+    5 minuten in-memory gecached (20-08-2026, zelfde reden/patroon als
+    kosten_vergelijking(): leest ook de VOLLE metingen-tabel en kostte
+    op de Pi zelf gemeten 6-7 seconden aan Python-verwerking per
+    paginalaad, goed voor het merendeel van de traagheid die de
+    nachtelijke Gezondheidscontrole signaleerde)."""
+    nu = time.time()
+    cache = _ZONPATROON_CACHE
+    if cache["data"] is not None and nu - cache["opgehaald_op"] < _ZONPATROON_CACHE_SECONDEN:
+        return cache["data"]
+
     conn = _connect()
     rijen = conn.execute(
         "SELECT timestamp, energy_export_kwh FROM metingen ORDER BY timestamp ASC"
@@ -330,13 +345,16 @@ def zonpatroon_per_uur() -> list[dict]:
         delta = max(0.0, v["laatste"] - v["eerste"])
         per_uur[v["uur"]].append(delta)
 
-    return [
+    resultaat = [
         {
             "uur": f"{u:02d}:00",
             "gemiddeld_kwh": round(sum(waarden) / len(waarden), 3) if waarden else 0.0,
         }
         for u, waarden in sorted(per_uur.items())
     ]
+    cache["data"] = resultaat
+    cache["opgehaald_op"] = nu
+    return resultaat
 
 
 def _schaaltarief(schalen: list[tuple[float, float, float]], volume: float) -> float:

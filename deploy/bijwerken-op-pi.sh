@@ -13,7 +13,7 @@ PI_PAD="/opt/energiedashboard"
 echo "Code overzetten naar $PI_HOST:$PI_PAD ..."
 ssh "$PI_HOST" "sudo mkdir -p $PI_PAD && sudo chown jacob:jacob $PI_PAD"
 rsync -avz --delete \
-  --exclude .venv --exclude __pycache__ --exclude dev_data --exclude deploy \
+  --exclude .venv --exclude __pycache__ --exclude dev_data --exclude deploy --exclude .git \
   "$PROJECT_DIR"/ "$PI_HOST:$PI_PAD/"
 
 echo "Service-bestand installeren ..."

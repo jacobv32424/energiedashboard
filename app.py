@@ -83,6 +83,11 @@ def voorschot_toevoegen():
     return redirect(request.referrer or url_for("dashboard"))
 
 
+@app.route("/introductie")
+def introductie():
+    return render_template("introductie.html")
+
+
 @app.route("/handleiding")
 def handleiding():
     pad = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Handleiding.md")

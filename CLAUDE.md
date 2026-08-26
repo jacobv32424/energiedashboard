@@ -205,3 +205,70 @@ Taal moet in beide voor een leek te begrijpen zijn: geen jargon als
 Filmproject (Toelichting.md/Handleiding.md) en Adressenboek
 (HANDLEIDING.md) — zie ook de globale afspraak hierover in
 `~/.claude/CLAUDE.md`.
+
+## Zijbalk-menu + Introductie (24-08-2026)
+
+Dit dashboard bestond tot vandaag uit twee losse HTML-bestanden zonder
+gedeelde basis-template (`templates/dashboard.html`,
+`templates/handleiding.html`, elk hun eigen `<head>`/kleurtokens). Er is
+nu een linker-zijbalk-menu bijgekomen (patroon van Spil,
+`~/projects/Spil/spil/templates/basis.html` + `static/stijl.css`) en een
+nieuwe Introductiepagina (patroon van roladministratie-web/
+Commandocentrum) — beide zonder een `{% extends %}`-refactor, puur via
+`{% include %}`:
+
+- **`templates/partials/zijbalk.html`** — het ene, gedeelde menu
+  (Dashboard/Introductie/Handleiding), via `{% include %}` in
+  `dashboard.html`, `handleiding.html` én `introductie.html` geplakt.
+  Verwacht een `actieve_pagina`-variabele, gezet met `{% set %}` vlak
+  vóór de include in elke pagina (Jinja's `include` werkt "with context"
+  by default, dus dat is genoeg — geen routewijziging nodig voor de
+  actieve-status-highlight). Kleuren: vaste donkere achtergrond
+  (`#0F1E1C`, dezelfde hex als dit dashboard se eigen lichte-thema
+  `--inkt`) zodat de balk in zowel licht als donker thema donker blijft
+  — een `var()` die met het thema meeschakelt zou de balk in donkere
+  modus juist lícht maken. Actieve link gebruikt gewoon `var(--accent)`,
+  die al met het thema meeschakelt en in beide standen goed leesbaar is.
+  De bestaande vaste, rechtsboven zwevende "📖 Handleiding"-link in
+  `dashboard.html` is **verwijderd** (incl. de bijbehorende
+  `.handleiding-link`-CSS) — die werd dubbelop met de nieuwe zijbalk.
+  De bestaande `.navigator`-periodetabs (dag/week/maand/jaar) zijn
+  **niet** aangeraakt, dat blijft functionele periodenavigatie, geen
+  sitenavigatie.
+- **`templates/introductie.html`** (route `introductie`, `/introductie`,
+  nieuw 24-08-2026) — een korte, visuele rondleiding: railnavigatie +
+  voortgangsbalk, JS-gestuurd tonen/verbergen (geen paginaherlaad tussen
+  stappen), zes hoofdstukken. **Alle links gebruiken `url_for(...)`**,
+  geen kale `href`'s — een hernoemde/verwijderde route geeft dus een
+  directe `BuildError` bij het opvragen van de pagina, geen stil kapotte
+  link (zelfde vangnet als Spils versie van dit patroon).
+  Stap-teksten zijn bewust groter en met meer regelafstand
+  (`font-size:15.5px; line-height:1.8`) dan de rest van dit compactere
+  dashboard — Jacob is dyslectisch/visueel ingesteld, expliciet op
+  gelet bij deze pagina.
+
+## Introductie & Handleiding: bijwerken is een discipline, geen automatisme
+
+Zelfde afspraak als in Spils en roladministratie-web's CLAUDE.md: **er is
+geen code die dit vanzelf doet.** Dit is een discipline die elke sessie
+zelf moet toepassen, niet een mechanisme.
+
+- **Handleiding.md** volgt de bestaande regel hierboven ("twee plekken,
+  niet één"): bij elke functionele wijziging in dezelfde beurt
+  bijwerken.
+- **`templates/introductie.html`** is bewust kort en curated — zes
+  hoofdstukken, het grote plaatje, geen naslagwerk. Niet elke kleine
+  wijziging hoort hier thuis. Wél bijwerken bij: een nieuw item in de
+  zijbalk (`templates/partials/zijbalk.html`); een nieuwe grafiek/KPI
+  die het "grote plaatje" in stap 1/3 verandert; een wijziging aan de
+  slimmemeterportal-koppeling of de rekening-logica (stap 3/4); of een
+  hernoemde/verwijderde route die in de pagina gelinkt wordt.
+- **Vangnet, maar niet compleet**: zie hierboven — alle links gebruiken
+  `url_for(...)`, dus een hernoemde route breekt zichtbaar (`BuildError`),
+  niet stil. De tekst zelf (uitleg, voorbeeldrijen) heeft dat vangnet
+  niet en kan wél ongemerkt verouderen — daar blijft gerichte aandacht
+  bij een grotere wijziging voor nodig.
+- Geen nieuwe kleuren of lettertype toegevoegd voor deze twee
+  onderdelen — alles hergebruikt de bestaande `--papier`/`--paneel`/
+  `--inkt`/`--accent`/...-tokens en Fraunces/IBM Plex Sans die
+  `dashboard.html`/`handleiding.html` al gebruikten.

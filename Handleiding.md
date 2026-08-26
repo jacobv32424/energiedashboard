@@ -19,8 +19,19 @@ gebeurt.
 ## Waar vind je het
 
 **http://plex:8421** — werkt op elk apparaat op je eigen netwerk (laptop,
-telefoon, tablet). Er is geen inlog nodig. Deze handleiding bereik je
-vanuit het dashboard zelf via de knop "Handleiding" rechtsboven.
+telefoon, tablet). Er is geen inlog nodig. Links op elke pagina staat een
+vast menu met drie onderdelen: **Dashboard**, **Introductie** en
+**Handleiding** (deze pagina) — zo ben je altijd één klik verwijderd van
+elk van de drie.
+
+## Nieuw hier? Begin bij de Introductie
+
+Naast deze uitgebreide handleiding is er ook een korte, visuele
+**Introductie** (via het menu links) — een paar klikbare stappen die in
+een paar minuten laten zien wat het dashboard toont, hoe je terugbladert
+in de tijd, wat de belangrijkste cijfers betekenen, en waar de data van
+vóór juli 2026 vandaan komt. Deze handleiding hier blijft het volledige
+naslagwerk voor elk detail; de Introductie is de snelle rondleiding.
 
 ## Wat je bovenaan ziet
 

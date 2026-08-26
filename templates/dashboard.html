@@ -56,14 +56,6 @@ header.top .sub{font-size:13px; color:var(--inkt-zacht); margin-top:4px}
   border-radius:999px; padding:7px 14px; font:inherit; font-size:12.5px; cursor:pointer;
 }
 .theme-knop:hover{color:var(--inkt)}
-.handleiding-link{
-  position:fixed; top:14px; right:16px; z-index:20;
-  display:inline-flex; align-items:center; gap:.35rem;
-  background:var(--paneel); color:var(--accent); text-decoration:none;
-  font-size:13px; font-weight:600; padding:7px 14px;
-  border:1px solid var(--lijn); border-radius:999px; box-shadow:var(--schaduw);
-}
-.handleiding-link:hover{color:var(--inkt)}
 
 .kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:14px; margin-bottom:22px}
 .kpi{
@@ -181,7 +173,9 @@ table.tarieftabel td:last-child{text-align:right; font-family:"IBM Plex Mono",mo
 </style>
 </head>
 <body>
-<a class="handleiding-link" href="{{ url_for('handleiding') }}">📖 Handleiding</a>
+{% set actieve_pagina = "dashboard" %}
+{% include "partials/zijbalk.html" %}
+<div class="ed-inhoud-met-zijbalk">
 <div class="wrap">
   <header class="top">
     <div>
@@ -444,7 +438,9 @@ table.tarieftabel td:last-child{text-align:right; font-family:"IBM Plex Mono",mo
       beurs. De vraag was simpel: <em>levert dat nou echt iets op, en hoeveel
       stroom maken die panelen eigenlijk zelf?</em> Dit dashboard geeft daar
       antwoord op, met de cijfers van je eigen meter &mdash; geen slag om de
-      arm, gewoon wat er hier thuis daadwerkelijk gebeurt.
+      arm, gewoon wat er hier thuis daadwerkelijk gebeurt. Nieuw hier?
+      De <a href="{{ url_for('introductie') }}" style="color:var(--accent)">Introductie</a>
+      (in het menu links) laat dit in een paar klikbare stappen zien.
     </p>
     <div class="kenmerken">
       <div class="kenmerk" style="--k:var(--accent)">
@@ -479,6 +475,7 @@ table.tarieftabel td:last-child{text-align:right; font-family:"IBM Plex Mono",mo
   </section>
 
   <footer>Energiedashboard &middot; ververst bij elke paginalaad &middot; data via energy_logger / price_fetcher / slimmemeterportal.nl</footer>
+</div>
 </div>
 <img class="merk-badge" src="{{ url_for('static', filename='img/jacobs-creative-mind-badge.png') }}" alt="Jacob's Creative Mind">
 

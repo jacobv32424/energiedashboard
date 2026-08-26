@@ -50,11 +50,15 @@ body{margin:0; background:var(--papier); color:var(--inkt); font-family:"IBM Ple
 </style>
 </head>
 <body>
+{% set actieve_pagina = "handleiding" %}
+{% include "partials/zijbalk.html" %}
+<div class="ed-inhoud-met-zijbalk">
 <div class="wrap">
   <a class="terug" href="{{ url_for('dashboard') }}">&larr; Terug naar het dashboard</a>
   <div class="paneel">
     {{ inhoud | safe }}
   </div>
+</div>
 </div>
 <img class="merk-badge" src="{{ url_for('static', filename='img/jacobs-creative-mind-badge.png') }}" alt="Jacob's Creative Mind">
 <script>

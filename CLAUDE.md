@@ -272,3 +272,20 @@ zelf moet toepassen, niet een mechanisme.
   onderdelen — alles hergebruikt de bestaande `--papier`/`--paneel`/
   `--inkt`/`--accent`/...-tokens en Fraunces/IBM Plex Sans die
   `dashboard.html`/`handleiding.html` al gebruikten.
+
+## Patroon #1: Vragen, Wensen & Bevindingen (27-08-2026)
+
+Geïmplementeerd (Commandocentrums patronen-overzicht, oorsprong Spil).
+Eigen JSON-bestand `config.VRAGEN_PAD` (env var
+`ENERGIEDASHBOARD_VRAGEN_PAD`, dev-fallback `dev_data/vragen.json`) --
+zelfde eigen-invoer-redenering als `VOORSCHOT_PAD` hierboven (geen
+meetdata, dus geen plek in de read-only logger-database). Functies in
+`dataset.py` (`alle_vragen`/`vraag_toevoegen`/etc.), routes in `app.py`
+(`/vragen`, `/vragen/toevoegen`, `/vragen/<id>/...`), nieuwe
+`templates/vragen.html` (zelfde `.wrap`/`.paneel`-patroon als
+`handleiding.html`, geen nieuwe kleuren/lettertype), nieuw zijbalk-item.
+
+**Afwijking t.o.v. de Spil-referentie-implementatie**: geen "wie"-veld
+(dit dashboard heeft geen gebruikersaccounts) en geen bijlagen-upload
+(nog niet gevraagd). Geen versienummer in dit project --
+`verwerkt_in_versie` gebruikt daarom een datumstempel.

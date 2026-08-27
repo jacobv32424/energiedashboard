@@ -137,6 +137,13 @@ onderliggende data vandaan komt. Niets verstopt.
 Rechtsboven bij "Donker/licht" schakel je het thema om; je keuze wordt
 onthouden voor de volgende keer dat je het dashboard opent.
 
+## Vragen, Wensen & Bevindingen
+
+Via de zijbalk: een plek om open vragen, wensen of bevindingen vast te
+leggen, met een eigen casenummer per item. Vul een onderwerp en je
+vraag in; de status loopt daarna door van "open" naar "beantwoord",
+eventueel "bouwen" en uiteindelijk "gebouwd"/"toegelicht"/"afgewezen".
+
 ## Wat het niet doet
 
 - Geen instellingen aanpassen vanuit het dashboard zelf (tarieven wijzig

@@ -16,14 +16,6 @@ VOORSCHOT_PAD = os.environ.get(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "dev_data", "voorschotten.json"),
 )
 
-# Pad naar Vragen, Wensen & Bevindingen (Patroon #1, 27-08-2026) -- zelfde
-# eigen-invoer-redenering als VOORSCHOT_PAD hierboven: geen meetdata, dus
-# geen plek in de (read-only) logger-database.
-VRAGEN_PAD = os.environ.get(
-    "ENERGIEDASHBOARD_VRAGEN_PAD",
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "dev_data", "vragen.json"),
-)
-
 # slimmemeterportal.nl UserAPI -- echte historische kwartierdata (elektriciteit
 # + gas, terug tot 2015), gebruikt om de periode vóór het begin van de eigen
 # P1-logging (2 juli 2026) met echte data te vullen i.p.v. een schatting.

@@ -99,69 +99,6 @@ def handleiding():
     return render_template("handleiding.html", inhoud=html)
 
 
-_VRAGEN_TABBLAD_NAMEN = ["Dashboard", "Voorschot", "Zelfvoorzienendheid", "Rekening", "Algemeen"]
-_VRAGEN_STATUSSEN = ("open", "beantwoord", "bouwen", "gebouwd", "toegelicht", "afgewezen")
-
-
-@app.route("/vragen")
-def vragen_overzicht():
-    status_filter = request.args.get("status", "")
-    gebied_filter = request.args.get("gebied", "")
-    return render_template(
-        "vragen.html",
-        vragen=dataset.alle_vragen(status_filter, gebied_filter),
-        gebieden=dataset.alle_vragen_gebieden(),
-        tabblad_namen=_VRAGEN_TABBLAD_NAMEN,
-        statistiek=dataset.vragen_statistiek(),
-        statussen=_VRAGEN_STATUSSEN,
-        status_filter=status_filter, gebied_filter=gebied_filter,
-    )
-
-
-@app.route("/vragen/toevoegen", methods=["POST"])
-def vragen_toevoegen():
-    onderwerp = (request.form.get("onderwerp") or "").strip()
-    vraag = (request.form.get("vraag") or "").strip()
-    if onderwerp and vraag:
-        dataset.vraag_toevoegen(
-            onderwerp, vraag,
-            gebied=(request.form.get("gebied") or "").strip(),
-            toelichting=(request.form.get("toelichting") or "").strip(),
-            prioriteit=request.form.get("prioriteit", "normaal"),
-        )
-    return redirect(url_for("vragen_overzicht"))
-
-
-@app.route("/vragen/<int:vraag_id>/beantwoorden", methods=["POST"])
-def vragen_beantwoorden(vraag_id):
-    dataset.vraag_beantwoorden(vraag_id, request.form.get("antwoord", ""), request.form.get("actie", ""))
-    return redirect(url_for("vragen_overzicht"))
-
-
-@app.route("/vragen/<int:vraag_id>/klaar-om-te-bouwen", methods=["POST"])
-def vragen_klaar_om_te_bouwen(vraag_id):
-    dataset.vraag_klaar_om_te_bouwen(vraag_id)
-    return redirect(url_for("vragen_overzicht"))
-
-
-@app.route("/vragen/<int:vraag_id>/gebouwd", methods=["POST"])
-def vragen_gebouwd(vraag_id):
-    dataset.vraag_gebouwd(vraag_id, dt.now().strftime("%d-%m-%Y"), request.form.get("actie", ""))
-    return redirect(url_for("vragen_overzicht"))
-
-
-@app.route("/vragen/<int:vraag_id>/toegelicht", methods=["POST"])
-def vragen_toegelicht(vraag_id):
-    dataset.vraag_toegelicht(vraag_id, dt.now().strftime("%d-%m-%Y"))
-    return redirect(url_for("vragen_overzicht"))
-
-
-@app.route("/vragen/<int:vraag_id>/afwijzen", methods=["POST"])
-def vragen_afwijzen(vraag_id):
-    dataset.vraag_afwijzen(vraag_id, request.form.get("reden", ""))
-    return redirect(url_for("vragen_overzicht"))
-
-
 # Cache-ververser (20-08-2026) -- kosten_vergelijking()/zonpatroon_per_uur()
 # lezen de volle metingen-tabel (traag op de externe SSD) en zijn 5 min
 # gecached, maar de EERSTE bezoeker na een herstart of na 5 min stilte

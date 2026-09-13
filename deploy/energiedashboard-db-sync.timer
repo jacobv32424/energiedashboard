@@ -1,0 +1,9 @@
+[Unit]
+Description=Elke 5 minuten de energie-database van plex ophalen
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target

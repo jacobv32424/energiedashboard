@@ -18,8 +18,11 @@ gebeurt.
 
 ## Waar vind je het
 
-**http://plex:8421** — werkt op elk apparaat op je eigen netwerk (laptop,
-telefoon, tablet). Er is geen inlog nodig. Links op elke pagina staat een
+**http://192.168.1.174:8421** — werkt op elk apparaat op je eigen
+thuisnetwerk (laptop, telefoon, tablet). Er is geen inlog nodig. Let op:
+dit werkt alleen thuis op het eigen wifi-netwerk, niet onderweg — deze Pi
+(`thuis`) heeft (nog) geen Tailscale, in tegenstelling tot de vorige
+locatie (`plex`, verhuisd op 12-09-2026). Links op elke pagina staat een
 vast menu met drie onderdelen: **Dashboard**, **Introductie** en
 **Handleiding** (deze pagina) — zo ben je altijd één klik verwijderd van
 elk van de drie.

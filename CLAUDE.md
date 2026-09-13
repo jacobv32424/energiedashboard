@@ -16,8 +16,12 @@ expliciete toestemming per keer.
 Klein, alleen-lezen Flask-dashboard voor de energieproject-data (P1-meter,
 zonnepanelen, gas, dynamisch EPEX-tarief) die `energy_logger.py`/
 `price_fetcher.py` op de Pi (`plex`, los project op
-`/home/jacob/energieproject`) in SQLite loggen. Dit dashboard raakt die
-logger-code normaliter **niet** aan — het leest er alleen uit; de enige
+`/home/jacob/energieproject`, draait als systemd-service
+**`p1-meter-uitlezen.service`** — tot 12-09-2026 `energy-logger.service`
+geheten, hernoemd omdat de oude naam op de Pi-overzichtspagina in
+Commandocentrum niet herkenbaar was als bij dit dashboard horend) in
+SQLite loggen. Dit dashboard raakt die logger-code normaliter **niet** aan
+— het leest er alleen uit; de enige
 uitzondering was de toevoeging van gaslogging op 2026-07-28 (de P1-meter
 gaf gasstanden door die de logger nog niet opsloeg — zie `metingen.gas_m3`,
 sindsdien gelogd, met terugwerkende kracht niet beschikbaar). `config.py`
@@ -50,13 +54,17 @@ Vandebron-contract: bij een tariefwijziging dus hier bijwerken, niet in
   vereenvoudiging -- ruim voldoende gezien de volumes.
 - Contract loopt tot 1 mei 2027 -- tarieven tot die datum geldig.
 
-Draait op de Pi als `energiedashboard.service`, poort 8421, als user
-`jacob` (zelfde patroon als `adressenboek.service`). Database staat op de
-PortableSSD, niet op de SD-kaart (schrijfcycli) — pad via de
-omgevingsvariabele `ENERGIEDASHBOARD_DB_PAD` in
-`/etc/energiedashboard/env` (of direct in de systemd-unit).
+Draait op de Pi `thuis` (verhuisd vanaf `plex` op 12-09-2026, zie
+"Verhuizing naar thuis" hieronder) als `energiedashboard.service`, poort
+8421, als user `thuis` (die Pi se eigen systeemgebruiker — **niet**
+`jacob` zoals op plex, zelfde valkuil als bij Inventarisatie Schuur se
+verhuizing). Database staat op thuis se eigen externe schijf
+(`/media/thuis/USB-SCHIJF-1TB/energiedashboard/energie.db`), niet op de
+SD-kaart (schrijfcycli) — pad via de omgevingsvariabele
+`ENERGIEDASHBOARD_DB_PAD` in de systemd-unit. Dit is een **kopie**, geen
+live-koppeling: zie hieronder waarom en hoe die actueel blijft.
 
-`dev_data/energie.db` is een lokale ontwikkelkopie (via `scp` van de Pi) om
+`dev_data/energie.db` is een lokale ontwikkelkopie (via `scp` van thuis) om
 zonder SSH te kunnen testen — nooit de bron van waarheid, en niet
 meenemen in de rsync-deploy naar de Pi.
 
@@ -246,6 +254,10 @@ Commandocentrum) — beide zonder een `{% extends %}`-refactor, puur via
   (`font-size:15.5px; line-height:1.8`) dan de rest van dit compactere
   dashboard — Jacob is dyslectisch/visueel ingesteld, expliciet op
   gelet bij deze pagina.
+- Geen nieuwe kleuren of lettertype toegevoegd voor deze twee
+  onderdelen — alles hergebruikt de bestaande `--papier`/`--paneel`/
+  `--inkt`/`--accent`/...-tokens en Fraunces/IBM Plex Sans die
+  `dashboard.html`/`handleiding.html` al gebruikten.
 
 ## Introductie & Handleiding: bijwerken is een discipline, geen automatisme
 
@@ -268,7 +280,87 @@ zelf moet toepassen, niet een mechanisme.
   niet stil. De tekst zelf (uitleg, voorbeeldrijen) heeft dat vangnet
   niet en kan wél ongemerkt verouderen — daar blijft gerichte aandacht
   bij een grotere wijziging voor nodig.
-- Geen nieuwe kleuren of lettertype toegevoegd voor deze twee
-  onderdelen — alles hergebruikt de bestaande `--papier`/`--paneel`/
-  `--inkt`/`--accent`/...-tokens en Fraunces/IBM Plex Sans die
-  `dashboard.html`/`handleiding.html` al gebruikten.
+
+## Verhuizing naar `thuis` (12-09-2026)
+
+plex draaide al veel (adressenboek, roladministratie, Huistechniek
+Verheul, Inventarisatie Schuur, Plex Media Server zelf) -- dit dashboard
+is verhuisd naar `thuis` (vijfde Pi-apparaat, Raspberry Pi 3 B+,
+SSH-alias `thuis` -> `192.168.1.174`, systeemgebruiker `thuis`, **geen**
+Tailscale, alleen bereikbaar op het thuisnetwerk-IP). Zelfde soort
+verhuizing als Inventarisatie Schuur (12-09-2026, plex -> thuis) en Spil
+(11-09-2026, laptop -> spil-pi) -- zie `programma_verhuizingen.json` in
+Commandocentrum voor de volledige log van alle drie.
+
+**Complicatie die Inventarisatie Schuur niet had**: dit dashboard heeft
+wél een database, en die database wordt continu bijgewerkt door
+`energy_logger.py`/`price_fetcher.py` (systemd-service
+`p1-meter-uitlezen.service`, zie hierboven) die op **plex** blijven draaien
+(P1-meter/USB-aansluiting zit daar) -- de logger zelf verhuist dus niet
+mee, alleen dit leesdashboard. Twee opties overwogen: de database live
+over het netwerk benaderen (NFS/sshfs) of periodiek een consistente
+kopie ophalen. Gekozen voor het laatste -- een live netwerk-mount van
+een SQLite-bestand in WAL-modus (zie de "database is locked"-fix
+hierboven) is riskant: WAL vertrouwt op gedeeld geheugen (mmap) dat over
+NFS/sshfs onbetrouwbaar is, precies het soort probleem dat de
+WAL-fix destijds oploste. Een periodieke kopie voegt hooguit een paar
+minuten vertraging toe, wat voor een huishoud-dashboard ruim
+acceptabel is (dit dashboard cachet toch al 5 min, zie hierboven).
+
+**Hoe het werkt** (`deploy/sync_energie_db.sh` +
+`deploy/energiedashboard-db-sync.{service,timer}`, alle drie draaien op
+thuis zelf, geïnstalleerd door `deploy/bijwerken-op-pi.sh`):
+- Een systemd-timer op thuis draait elke 5 min (`OnUnitActiveSec=5min`)
+  het sync-script.
+- Dat script ssh't naar plex en draait daar `sqlite3 ... ".backup ..."`
+  (geen ruwe bestandskopie/rsync van het live `.db`-bestand -- `.backup`
+  garandeert een consistente snapshot, ook als de logger net op dat
+  moment schrijft) naar een tijdelijk bestand, haalt dat met `scp` op,
+  en zet het pas na een volledige download via `mv` (atomisch, dus de
+  Flask-app leest nooit een half overgezet bestand) op de eigen plek.
+- Eigen SSH-sleutel (`~/.ssh/id_thuis_energiedb`, aangemaakt op thuis
+  zelf) met de publieke helft in plex se `authorized_keys` -- zelfde
+  patroon als Spils `id_spil_backup`. `~/.ssh/config` op thuis kreeg een
+  `Host plex`-alias (`192.168.1.163`, user `jacob`, met
+  `IdentityFile`) zodat het sync-script simpelweg `ssh plex ...` kan
+  gebruiken.
+- **Valkuil ontdekt bij het aanmaken van de sleutel**: plex se
+  `~/.ssh/authorized_keys` bleek al corrupt door een eerdere sessie (de
+  Spil-migratie) -- een interactieve `ssh-keygen`-prompt ("Overwrite
+  (y/n)? ") was per ongeluk in het bestand terechtgekomen, zonder
+  afsluitende newline. De nieuwe sleutel werd daardoor aan die
+  prompt-tekst vastgeplakt in plaats van op een eigen regel te staan, en
+  sshd wees hem stil af (geen foutmelding, gewoon "Permission denied").
+  Zichtbaar gemaakt met `ssh-keygen -lf authorized_keys` (telde er maar
+  3 i.p.v. 4) en `cat -n`. Opgelost door het bestand schoon te
+  herschrijven met alleen de vier geldige sleutelregels (backup van de
+  kapotte versie: `plex:~/.ssh/authorized_keys.backup-20260912-corrupt`).
+  **Les voor een volgende sleutelactie**: als een net toegevoegde sleutel
+  zonder duidelijke reden geweigerd wordt, controleer `authorized_keys`
+  altijd met `cat -n` (regelnummers) op precies dit soort stille
+  aaneenplakking, niet alleen op de aanwezigheid van de sleuteltekst.
+
+**Eenmalige dataoverdracht bij de verhuizing zelf** (niet iets wat de
+timer doet): `voorschotten.json` (Jacobs eigen voorschotbedrag, zie
+hierboven) en `historie_slimmemeter.json` zijn één keer handmatig van
+plex naar thuis se opslag gekopieerd, zodat geen van beide verloren
+ging. Ga na een eventuele toekomstige `slimmemeterportal.backfill(...)`
+(zie hierboven) ervan uit dat die voortaan op de nieuwe locatie
+(thuis se schijf) staat -- plex se kopie is na de verhuizing bevroren,
+niet de bron van waarheid meer.
+
+**Getest na de verhuizing**: alle routes (`/`, vier periodes,
+`/introductie`, `/handleiding`) gaven 200 met echte data (voorschot
+€160, actuele kWh-cijfers, de gecachte kostenvergelijking met een
+berekend besparingsbedrag) i.p.v. een foutpagina; de schrijvende
+`/voorschot`-route getest met een tijdelijke testregel (andere datum
+dan de bestaande) en teruggezet, `voorschotten.json` nadien bevestigd
+byte-voor-byte gelijk aan ervoor. `energiedashboard.service` op plex
+gestopt en uitgeschakeld, bestanden bewust laten staan (rollback-optie),
+zelfde voorzichtige aanpak als bij de eerdere twee verhuizingen.
+
+**Consistent bijgewerkt in Commandocentrum** (`PROJECTEN_LAUNCHER`-url,
+`PI_GEHOSTE_OP`, omschrijvingen van plex/thuis in `PI_APPARATEN`,
+`programma_verhuizingen.json`) en op programmas-overzicht (kaart-url) --
+zie "Eén samenhangende projectenlijst" in Commandocentrums eigen
+CLAUDE.md.

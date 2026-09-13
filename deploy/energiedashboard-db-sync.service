@@ -1,0 +1,8 @@
+[Unit]
+Description=Energiedashboard: database-kopie ophalen van plex
+
+[Service]
+Type=oneshot
+User=thuis
+Group=thuis
+ExecStart=/opt/energiedashboard/deploy/sync_energie_db.sh

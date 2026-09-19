@@ -26,10 +26,10 @@ uitzondering was de toevoeging van gaslogging op 2026-07-28 (de P1-meter
 gaf gasstanden door die de logger nog niet opsloeg — zie `metingen.gas_m3`,
 sindsdien gelogd, met terugwerkende kracht niet beschikbaar). `config.py`
 dupliceert bewust alle tarieven (elektriciteit + gas) uit het
-Vandebron-contract: bij een tariefwijziging dus hier bijwerken, niet in
+GroenChoice-contract: bij een tariefwijziging dus hier bijwerken, niet in
 `energieproject/config.py`.
 
-**Btw/energiebelasting/inkoopvergoeding -- uitgezocht met Vandebron
+**Btw/energiebelasting/inkoopvergoeding -- uitgezocht met GroenChoice
 (2026-07-28), samengevat:**
 - Het kale leveringstarief (`ELEKTRICITEIT_NORMAAL_KWH`/`_DAL_KWH`,
   van het contractoverzicht) is exclusief energiebelasting, inkoopvergoeding
@@ -40,7 +40,7 @@ Vandebron-contract: bij een tariefwijziging dus hier bijwerken, niet in
   `price_fetcher.py`/energyzero-bibliotheek met `PriceType.ALL_IN`) is
   ZELF al all-in: kale marktprijs + energiebelasting + btw zitten daar al
   in verwerkt (bevestigd door de waarden zelf: €0,29-0,37/kWh, veel te
-  hoog voor een kale groothandelsprijs). Alleen de Vandebron-specifieke
+  hoog voor een kale groothandelsprijs). Alleen de GroenChoice-specifieke
   inkoopvergoeding (leveranciersopslag, geen marktgegeven, dus nooit in
   een generieke marktprijs-bibliotheek verwerkt) ontbreekt daar en wordt
   apart opgeteld, inclusief de 21% btw daarover.
@@ -364,3 +364,48 @@ zelfde voorzichtige aanpak als bij de eerdere twee verhuizingen.
 `programma_verhuizingen.json`) en op programmas-overzicht (kaart-url) --
 zie "Eén samenhangende projectenlijst" in Commandocentrums eigen
 CLAUDE.md.
+
+## Terugverhuisd naar plex (14-09-2026)
+
+De verhuizing naar thuis hierboven is teruggedraaid, zelfde beurt als
+Adressenboek/Huistechniek Verheul (zie Commandocentrums eigen
+`programma_verhuizingen.json`, id 9). Simpeler dan de heenreis: de
+P1-meter-logger draaide al die tijd op plex door en schreef continu naar
+`/media/jacob/PortableSSD/energieproject/data/energie.db` -- die
+live-database hoefde dus niet gekopieerd te worden, alleen het
+leesdashboard (`energiedashboard.service`) verhuisde terug. De
+5-minuten-sync-timer op thuis (`energiedashboard-db-sync.timer`) is
+overbodig geworden en uitgeschakeld -- het dashboard leest weer
+rechtstreeks en zonder vertraging uit de logger se eigen database.
+`voorschotten.json`/`historie_slimmemeter.json` teruggezet naar plex.
+Live adres: `http://192.168.1.163:8421`.
+
+## Leverancier: GroenChoice i.p.v. Vandebron (19-09-2026)
+
+Jacob is overgestapt van Vandebron naar GroenChoice. Alle "Vandebron"-
+verwijzingen in `config.py`/`dataset.py`/`templates/dashboard.html`/
+`Handleiding.md` zijn hernoemd naar "GroenChoice" -- de bedragen zelf
+zijn **niet** gewijzigd, Jacob bevestigde dat het GroenChoice-
+contractoverzicht dezelfde tarieven laat zien als al in `config.py`
+stonden. Bij een echte tariefwijziging dus gewoon in `config.py`
+bijwerken zoals altijd.
+
+## `/api/kosten` — alleen-lezen JSON voor andere programma's (19-09-2026)
+
+Nieuwe route in `app.py`, bedoeld voor Home Assistant (project
+"Gasverbruik home", Pi `thuis`) om dezelfde kosten-cijfers te tonen
+zonder de tariefberekening te dupliceren:
+
+```
+GET http://192.168.1.163:8421/api/kosten
+```
+
+Geeft JSON terug: `vermogen_w`, `huidige_prijs_kwh`,
+`verbruik_vandaag_kwh`, `elektriciteitskosten_vandaag`,
+`gaskosten_vandaag` (nieuwe functie `dataset.gaskosten_vandaag()`,
+zelfde tariefopbouw als de gas-post in `geschatte_rekening()` maar dan
+alleen voor het verbruik van vandaag) en `totale_energiekosten_vandaag`.
+Home Assistant polt dit elke 60s via een `rest:`-sensor. Let op: de
+eerste aanroep na een herstart van deze service kan ~15-16s duren
+(koude cache van `kosten_vergelijking()`) -- de HA-sensor heeft daarom
+`timeout: 20` staan.

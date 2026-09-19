@@ -286,7 +286,7 @@ table.tarieftabel td:last-child{text-align:right; font-family:"IBM Plex Mono",mo
       <button type="submit">Toepassen</button>
     </form>
     <div class="uitleg">
-      Sinds {{ rekening.sinds }} ({{ rekening.aantal_dagen }} dagen{% if rekening.dagen_geschat %}, waarvan {{ rekening.dagen_geschat }} geschat{% endif %}) &mdash; op basis van je eigen verbruik en je Vandebron-contract.
+      Sinds {{ rekening.sinds }} ({{ rekening.aantal_dagen }} dagen{% if rekening.dagen_geschat %}, waarvan {{ rekening.dagen_geschat }} geschat{% endif %}) &mdash; op basis van je eigen verbruik en je GroenChoice-contract.
     </div>
 
     {% for cat, titel in [("elektriciteit", "Elektriciteit"), ("gas", "Gas")] %}

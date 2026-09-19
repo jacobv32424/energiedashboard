@@ -4,7 +4,7 @@ import time
 from datetime import date, timezone, datetime as dt
 
 import markdown
-from flask import Flask, redirect, render_template, request, url_for
+from flask import Flask, jsonify, redirect, render_template, request, url_for
 
 import config
 import dataset
@@ -81,6 +81,31 @@ def voorschot_toevoegen():
     except (ValueError, TypeError):
         pass
     return redirect(request.referrer or url_for("dashboard"))
+
+
+# Alleen-lezen JSON-samenvatting van de kosten, bedoeld voor andere
+# programma's (zoals Home Assistant op "thuis") die deze cijfers willen
+# tonen zonder zelf de tariefberekening te hoeven overdoen -- hergebruikt
+# gewoon dezelfde dataset-functies als de hoofdpagina.
+@app.route("/api/kosten")
+def api_kosten():
+    stand = dataset.huidige_stand()
+    kosten = dataset.kosten_vergelijking()
+    vandaag = dt.now(timezone.utc).date()
+    kosten_per_dag = dataset._dagelijkse_totaalkosten(vandaag, vandaag, kosten)
+    elektriciteit_vandaag = kosten_per_dag.get(vandaag.isoformat())
+    gas_vandaag = dataset.gaskosten_vandaag()
+    totaal_vandaag = None
+    if elektriciteit_vandaag is not None or gas_vandaag is not None:
+        totaal_vandaag = round((elektriciteit_vandaag or 0.0) + (gas_vandaag or 0.0), 2)
+    return jsonify({
+        "vermogen_w": stand["vermogen_w"] if stand else None,
+        "huidige_prijs_kwh": stand["huidige_prijs_kwh"] if stand else None,
+        "verbruik_vandaag_kwh": stand["verbruik_vandaag_kwh"] if stand else None,
+        "elektriciteitskosten_vandaag": elektriciteit_vandaag,
+        "gaskosten_vandaag": gas_vandaag,
+        "totale_energiekosten_vandaag": totaal_vandaag,
+    })
 
 
 @app.route("/introductie")

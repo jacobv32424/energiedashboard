@@ -378,9 +378,43 @@ def _cumulatief_dynamisch_vanaf(kosten: list[dict], vanaf: date) -> float:
     return laatste - baseline
 
 
+def gaskosten_vandaag() -> float | None:
+    """Variabele gaskosten van vandaag (sinds middernacht) in euro's,
+    zelfde tariefopbouw als de gas-post in geschatte_rekening(), maar dan
+    voor alleen het gasverbruik van vandaag i.p.v. sinds het begin van de
+    logging. Geeft None als er (nog) geen gasstand vandaag beschikbaar is."""
+    conn = _connect()
+    vandaag_start = datetime.now(timezone.utc).date().isoformat()
+    eerste_vandaag = conn.execute(
+        "SELECT gas_m3 FROM metingen WHERE timestamp >= ? AND gas_m3 IS NOT NULL "
+        "ORDER BY timestamp ASC LIMIT 1",
+        (vandaag_start,),
+    ).fetchone()
+    laatste = conn.execute(
+        "SELECT gas_m3 FROM metingen WHERE gas_m3 IS NOT NULL ORDER BY timestamp DESC LIMIT 1"
+    ).fetchone()
+    eerste_totaal = conn.execute(
+        "SELECT gas_m3 FROM metingen WHERE gas_m3 IS NOT NULL ORDER BY timestamp ASC LIMIT 1"
+    ).fetchone()
+    conn.close()
+
+    if eerste_vandaag is None or laatste is None or eerste_totaal is None:
+        return None
+
+    gas_vandaag_m3 = max(0.0, laatste["gas_m3"] - eerste_vandaag["gas_m3"])
+    gas_totaal_sinds_logging = max(0.0, laatste["gas_m3"] - eerste_totaal["gas_m3"])
+    energiebelasting_tarief = _schaaltarief(config.GAS_ENERGIEBELASTING_SCHALEN, gas_totaal_sinds_logging)
+    prijs_per_m3 = (
+        config.GAS_LEVERING_M3 + config.GAS_REGIOTOESLAG_M3
+        + config.GAS_LOKAAL_INVESTEREN_M3 + energiebelasting_tarief
+        + config.GAS_INKOOPVERGOEDING_M3
+    )
+    return round(gas_vandaag_m3 * prijs_per_m3, 4)
+
+
 def geschatte_rekening(kosten: list[dict], vanaf: date | None = None) -> dict | None:
     """Proforma-schatting van de energierekening: energiekosten (dynamisch
-    tarief) + alle vaste kosten en heffingen uit het Vandebron-contract,
+    tarief) + alle vaste kosten en heffingen uit het GroenChoice-contract,
     voor zowel elektriciteit als gas.
 
     Standaard (`vanaf=None`) begint dit bij het begin van de logging
@@ -440,9 +474,9 @@ def geschatte_rekening(kosten: list[dict], vanaf: date | None = None) -> dict | 
     # kale marktprijs + energiebelasting + btw zijn daar al in verwerkt.
     # Energiebelasting hoort dus NIET nogmaals als aparte post opgeteld te
     # worden (dat was eerder een dubbeltelling). Alleen de
-    # Vandebron-specifieke inkoopvergoeding (een leveranciersopslag, geen
+    # GroenChoice-specifieke inkoopvergoeding (een leveranciersopslag, geen
     # marktgegeven) zit daar niet in en wordt apart toegevoegd, inclusief
-    # de 21% btw die Vandebron bevestigde (kale tarief + inkoopvergoeding +
+    # de 21% btw die GroenChoice bevestigde (kale tarief + inkoopvergoeding +
     # energiebelasting samen, dan btw).
     kwh_kosten = _cumulatief_dynamisch_vanaf(kosten, echt_start)
     vaste_leveringskosten = config.ELEKTRICITEIT_VASTE_LEVERINGSKOSTEN_PER_DAG * aantal_dagen
@@ -791,7 +825,7 @@ def kosten_vergelijking() -> list[dict]:
         prijs = prijzen[kwartier]
 
         # Kale tarief + energiebelasting, dan 21% btw -- bevestigd door
-        # Vandebron: het kale leveringstarief is exclusief energiebelasting
+        # GroenChoice: het kale leveringstarief is exclusief energiebelasting
         # en btw. Geen inkoopvergoeding hier: die geldt specifiek voor
         # dynamische contracten, niet voor dit vaste-tarief-scenario.
         # `prijs` (dynamisch) is al all-in (zie geschatte_rekening), dus

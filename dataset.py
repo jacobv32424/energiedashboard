@@ -379,10 +379,13 @@ def _cumulatief_dynamisch_vanaf(kosten: list[dict], vanaf: date) -> float:
 
 
 def gaskosten_vandaag() -> float | None:
-    """Variabele gaskosten van vandaag (sinds middernacht) in euro's,
-    zelfde tariefopbouw als de gas-post in geschatte_rekening(), maar dan
-    voor alleen het gasverbruik van vandaag i.p.v. sinds het begin van de
-    logging. Geeft None als er (nog) geen gasstand vandaag beschikbaar is."""
+    """Gaskosten van vandaag (sinds middernacht) in euro's: variabel
+    (verbruik x tarief, zelfde opbouw als de gas-post in
+    geschatte_rekening()) PLUS het vaste-kosten-aandeel van vandaag
+    (vaste leverings- + netbeheerkosten, net als bij elektriciteit in
+    _dagelijkse_totaalkosten() hierboven -- die telde dit voor
+    elektriciteit al mee, gas nog niet). Geeft None als er (nog) geen
+    gasstand vandaag beschikbaar is."""
     conn = _connect()
     vandaag_start = datetime.now(timezone.utc).date().isoformat()
     eerste_vandaag = conn.execute(
@@ -409,7 +412,8 @@ def gaskosten_vandaag() -> float | None:
         + config.GAS_LOKAAL_INVESTEREN_M3 + energiebelasting_tarief
         + config.GAS_INKOOPVERGOEDING_M3
     )
-    return round(gas_vandaag_m3 * prijs_per_m3, 4)
+    vaste_kosten_vandaag = config.GAS_VASTE_LEVERINGSKOSTEN_PER_DAG + config.GAS_NETBEHEERKOSTEN_PER_DAG
+    return round(gas_vandaag_m3 * prijs_per_m3 + vaste_kosten_vandaag, 4)
 
 
 def geschatte_rekening(kosten: list[dict], vanaf: date | None = None) -> dict | None:

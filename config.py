@@ -34,13 +34,13 @@ SLIMMEMETERPORTAL_HISTORIE_PAD = os.environ.get(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "dev_data", "historie_slimmemeter.json"),
 )
 
-# Alle bedragen hieronder komen letterlijk van het GroenChoice-contractoverzicht
-# van Jacob en van rechtstreekse navraag bij GroenChoice (2026-07-28),
+# Alle bedragen hieronder komen letterlijk van het Vandebron-contractoverzicht
+# van Jacob en van rechtstreekse navraag bij Vandebron (2026-07-28),
 # "inclusief btw". Dit dashboard is een apart project van de logger-service
 # en raakt die code niet aan (zie CLAUDE.md) -- bij een tariefwijziging dus
 # hier bijwerken (niet in energieproject/config.py).
 #
-# Bevestigd door GroenChoice: energiebelasting komt BOVENOP de kWh-tarieven
+# Bevestigd door Vandebron: energiebelasting komt BOVENOP de kWh-tarieven
 # hieronder (dus niet al inbegrepen), en er is daarnaast nog een
 # "inkoopvergoeding" per kWh/m3 (voor dynamische contracten -- Jacob heeft
 # een dynamisch contract, vandaar dat dit dashboard uberhaupt bestaat).

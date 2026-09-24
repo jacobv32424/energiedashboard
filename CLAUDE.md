@@ -380,7 +380,7 @@ rechtstreeks en zonder vertraging uit de logger se eigen database.
 `voorschotten.json`/`historie_slimmemeter.json` teruggezet naar plex.
 Live adres: `http://192.168.1.163:8421`.
 
-## Leverancier: GroenChoice i.p.v. Vandebron (19-09-2026)
+## Leverancier: GroenChoice i.p.v. Vandebron (19-09-2026) — TERUGGEDRAAID 24-09-2026
 
 Jacob is overgestapt van Vandebron naar GroenChoice. Alle "Vandebron"-
 verwijzingen in `config.py`/`dataset.py`/`templates/dashboard.html`/
@@ -409,3 +409,24 @@ Home Assistant polt dit elke 60s via een `rest:`-sensor. Let op: de
 eerste aanroep na een herstart van deze service kan ~15-16s duren
 (koude cache van `kosten_vergelijking()`) -- de HA-sensor heeft daarom
 `timeout: 20` staan.
+
+## Leverancier is Vandebron (24-09-2026)
+
+Jacob bevestigde op 24-09-2026 (in de Home Assistant-sessie) dat zijn
+leverancier **Vandebron** is, contract geldig tot 1 mei 2027. De
+hernoeming naar "GroenChoice" van 19-09 is in code, template en
+Handleiding teruggedraaid (alleen tekst, bedragen ongewijzigd). De
+oudere notities hierboven die "GroenChoice" noemen, lees je als
+Vandebron.
+
+Twee open punten, gevonden vanuit Home Assistant (nog niet opgelost,
+eerst met Jacob bespreken):
+- **Gas wordt sinds 19-09-2026 13:05 niet meer gelogd** in
+  `energieproject/data/energie.db` (laatste `metingen.gas_m3`). Daardoor
+  geeft `/api/kosten` `gaskosten_vandaag: null` en
+  `verbruik_vandaag_kwh: null`. Valt samen met het koppelen van de P1-meter
+  aan Home Assistant op 19-09. Oorzaak in energieproject nog niet onderzocht.
+- **Mogelijk dubbele btw op de inkoopvergoeding**: config zegt dat
+  "alle bedragen incl. btw" zijn, maar `dataset.py` doet
+  `ELEKTRICITEIT_INKOOPVERGOEDING_KWH * 1.21` (≈ €0,005/kWh te veel als de
+  €0,02571 al incl. btw is). Navragen bij Vandebron/contract.

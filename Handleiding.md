@@ -84,7 +84,7 @@ zodra je bij "nu" bent aangekomen — verder dan vandaag kun je niet kijken.
 
 Een proforma-optelsom van wat je energie ongeveer heeft gekost (of
 opgeleverd): de kale energiekosten plus alle vaste kosten en heffingen uit
-je GroenChoice-contract (vastrecht, netbeheerkosten, energiebelasting, de
+je Vandebron-contract (vastrecht, netbeheerkosten, energiebelasting, de
 vermindering daarop, de inkoopvergoeding, en — zodra er gasdata is — ook
 gas), netjes gegroepeerd onder "Elektriciteit" en "Gas" met een subtotaal
 per groep. Een groen bedrag is een vergoeding/vermindering, een gewoon
@@ -113,7 +113,7 @@ het verloop ziet in plaats van alleen het eindtotaal.
 Onderaan staan kanttekeningen bij posten die nog een schatting zijn (bijv.
 de vaste terugleveringskosten en de inkoopvergoeding op teruglevering, die
 allebei afhangen van je jaarverbruik terwijl er nog maar een paar weken
-data is — bij GroenChoice wordt dat op de jaarafrekening gecorrigeerd, hier
+data is — bij Vandebron wordt dat op de jaarafrekening gecorrigeerd, hier
 nog niet). Tarieven zijn geldig zolang het huidige contract loopt (tot
 1 mei 2027).
 

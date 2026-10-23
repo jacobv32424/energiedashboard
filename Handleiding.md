@@ -7,6 +7,14 @@ wat elk onderdeel betekent. Geen technische kennis nodig.
 
 [TOC]
 
+## In ruststand (sinds 23-10-2026)
+
+Het energiedashboard staat voorlopig uit; de link geeft dus een
+foutpagina. **De meter wordt wel gewoon verder uitgelezen**, zodat er
+geen gat in je verbruiksgegevens ontstaat. Weer aanzetten:
+Commandocentrum → Projecten → **☀️ Wekken**. Home Assistant merkt hier
+niets van; die leest de meter zelf.
+
 ## Waarom dit dashboard bestaat
 
 Sinds er zonnepanelen liggen en de stroomprijs niet meer elk jaar

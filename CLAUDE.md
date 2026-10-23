@@ -1,5 +1,20 @@
 # Werkinstructies voor Claude Code
 
+> **RUSTSTAND sinds 23-10-2026** (Jacob: "voorlopig niet meer gebruiken").
+> Op `plex` staat alleen `energiedashboard.service` op `disable --now`.
+> **`p1-meter-uitlezen.service` draait bewust door**: die vult
+> `energie.db`; uitzetten zou een blijvend gat in de historie geven. Wekken:
+> Commandocentrum → Projecten → ☀️ Wekken (of `ssh plex sudo systemctl
+> enable --now energiedashboard.service` + de naam uit
+> `~/projects/Commandocentrum/ruststand.json` halen). **Niet deployen
+> zolang de ruststand loopt**: `deploy/bijwerken-op-pi.sh` doet
+> `enable --now` + restart en wekt de app dus stilletjes (ook de daar
+> genoemde `energiedashboard-db-sync.timer` bestaat op plex niet meer).
+> **Open punt bij wekken**: de Gezondheidscontrole meldde 18 t/m 22-10
+> elke nacht "onbereikbaar: timed out" (23-10 wel 200), en bij een test
+> op 23-10 gaf `/` na een verse start binnen 60 s geen antwoord. Nog niet
+> onderzocht; dit hing al vóór de ruststand.
+
 ## Autonome uitvoering
 
 Zodra de scope van een taak duidelijk is, hoef je niet telkens opnieuw te
